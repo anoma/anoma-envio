@@ -1,4 +1,5 @@
 name: anoma-envio
+save_full_history: false
 contracts:
   - name: ProtocolAdapter
     handler: src/EventHandlers.ts
