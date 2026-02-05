@@ -1,0 +1,45 @@
+name: anoma-envio
+contracts:
+  - name: ProtocolAdapter
+    handler: src/EventHandlers.ts
+    events:
+      - event: ActionExecuted(bytes32 actionTreeRoot, uint256 actionTagCount)
+      - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: CommitmentTreeRootAdded(bytes32 root)
+      - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+      - event: Paused(address account)
+      - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
+      - event: Unpaused(address account)
+field_selection:
+  transaction_fields:
+    - "hash"
+    - "from"
+    - "to"
+    - "value"
+    - "gasUsed"
+    - "status"
+    - "input"
+networks:
+  - id: 42161
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
+  - id: 8453
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
+  - id: 10
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
+unordered_multichain_mode: true
