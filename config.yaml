@@ -23,23 +23,30 @@ field_selection:
     - "gasUsed"
     - "status"
     - "input"
+# Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
 networks:
-  - id: 42161
+  - id: 1 # Mainnet
     start_block: 0
     contracts:
     - name: ProtocolAdapter
       address:
-        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
-  - id: 8453
+        - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
+  - id: 42161 # Arbitrum
     start_block: 0
     contracts:
     - name: ProtocolAdapter
       address:
-        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
-  - id: 10
+        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+  - id: 8453 # Base
     start_block: 0
     contracts:
     - name: ProtocolAdapter
       address:
-        - "0x9ed43c229480659bf6b6607c46d7b96c6d760cbb"
+        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+  - id: 10 # Optimism
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
 unordered_multichain_mode: true
