@@ -190,7 +190,7 @@ describe("GraphQL Endpoint", () => {
         Action: Array<{
           id: string;
           actionTreeRoot: string;
-          tagCount: number;
+          actionTagCount: number;
           transaction: { txHash: string };
         }>;
       }>(`
@@ -198,7 +198,7 @@ describe("GraphQL Endpoint", () => {
           Action(limit: 5, order_by: {blockNumber: desc}) {
             id
             actionTreeRoot
-            tagCount
+            actionTagCount
             transaction { txHash }
           }
         }
@@ -209,7 +209,7 @@ describe("GraphQL Endpoint", () => {
       if (data.Action.length > 0) {
         const action = data.Action[0];
         expect(action).to.have.property("actionTreeRoot");
-        expect(action).to.have.property("tagCount").that.is.a("number");
+        expect(action).to.have.property("actionTagCount").that.is.a("number");
       }
     });
   });

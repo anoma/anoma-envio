@@ -21,6 +21,7 @@ import {
   Action,
   ComplianceUnit,
   LogicInput,
+  LogicRef,
   Payload,
   CommitmentTreeRoot,
   ForwarderCall,
@@ -217,6 +218,7 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
     complianceUnits: 0,
     logicInputs: 0,
     commitmentRoots: 0,
+    distinctLogics: 0,
     lastUpdatedBlock: 0,
     lastUpdatedTimestamp: 0,
   };
@@ -238,6 +240,7 @@ async function incrementStats(
     complianceUnits?: number;
     logicInputs?: number;
     commitmentRoots?: number;
+    distinctLogics?: number;
   }
 ): Promise<void> {
   const stats = await getOrCreateStats(context);
@@ -251,6 +254,7 @@ async function incrementStats(
     complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
     logicInputs: stats.logicInputs + (increments.logicInputs || 0),
     commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
+    distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
     lastUpdatedBlock: blockNumber,
     lastUpdatedTimestamp: timestamp,
   };
@@ -409,6 +413,25 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     }
   }
 
+  // Track distinct logicRefs
+  const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
+  let newLogicCount = 0;
+
+  for (const logicRef of uniqueLogicRefs) {
+    const existing = await context.LogicRef.get(logicRef);
+    if (!existing) {
+      const logicRefEntity: LogicRef = {
+        id: logicRef,
+        firstSeenBlock: event.block.number,
+        firstSeenTimestamp: event.block.timestamp,
+        firstSeenChainId: event.chainId,
+        firstSeenTxHash: txHash,
+      };
+      context.LogicRef.set(logicRefEntity);
+      newLogicCount++;
+    }
+  }
+
   // Update global stats
   const totalResources = event.params.tags.length;
   const consumedCount = Math.floor(totalResources / 2);
@@ -419,6 +442,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     resources: totalResources,
     resourcesConsumed: consumedCount,
     resourcesCreated: createdCount,
+    distinctLogics: newLogicCount,
   });
 
   // Clear the cache after processing is complete
@@ -482,7 +506,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     id: actionId,
     index: actionIndex,
     actionTreeRoot: event.params.actionTreeRoot,
-    tagCount: Number(event.params.actionTagCount),
+    actionTagCount: Number(event.params.actionTagCount),
     blockNumber: event.block.number,
     chainId: event.chainId,
     timestamp: event.block.timestamp,

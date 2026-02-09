@@ -81,7 +81,7 @@ type Action {
   id: ID!
   index: Int!
   actionTreeRoot: String!
-  tagCount: Int!
+  actionTagCount: Int!
   blockNumber: Int!
   chainId: Int!
   timestamp: Int!
@@ -215,6 +215,20 @@ type ForwarderCall {
 }
 
 # ============================================
+# Distinct Logic Tracking
+# ============================================
+
+# LogicRef - Tracks each distinct logic verifying key seen on-chain
+# Used to compute the distinctLogics counter in Stats.
+type LogicRef {
+  id: ID!  # The logicRef hex value (bytes32)
+  firstSeenBlock: Int!
+  firstSeenTimestamp: Int!
+  firstSeenChainId: Int!
+  firstSeenTxHash: String!
+}
+
+# ============================================
 # Aggregate Statistics
 # ============================================
 
@@ -230,6 +244,7 @@ type Stats {
   complianceUnits: Int!
   logicInputs: Int!
   commitmentRoots: Int!
+  distinctLogics: Int!
   lastUpdatedBlock: Int!
   lastUpdatedTimestamp: Int!
 }
