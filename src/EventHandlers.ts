@@ -663,7 +663,7 @@ function createPayloadEntity(
     srcAddress: string;
     params: { tag: string; index: bigint; blob: string };
   },
-  kind: "discovery" | "forwarder" | "application"
+  kind: "discovery" | "externalCall" | "application"
 ): Payload {
   const eventId = createEventId(event);
   const resourceId = createResourceId(event.chainId, event.params.tag);
@@ -687,7 +687,7 @@ ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPay
 
 // eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPayloadArgs) => {
-  const entity = createPayloadEntity(event, "forwarder");
+  const entity = createPayloadEntity(event, "externalCall");
   context.Payload.set(entity);
 });
 

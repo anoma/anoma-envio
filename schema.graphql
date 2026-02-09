@@ -22,7 +22,7 @@ enum DeletionCriterion {
 # Payload type indicator
 enum PayloadKind {
   discovery     # DiscoveryPayload - data with public keys for discovery
-  forwarder     # ExternalPayload - data for external/forwarder calls
+  externalCall  # ExternalPayload - data for external/forwarder calls
   application   # ApplicationPayload - application-specific data
 }
 
