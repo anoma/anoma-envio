@@ -128,7 +128,7 @@ type LogicInput {
   index: Int!
 
   tag: String!
-  logicRef: String! # The logic verifying key (same as verifyingKey in PA-EVM)
+  verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
   isConsumed: Boolean!
   proof: String
 
