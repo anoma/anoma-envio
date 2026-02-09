@@ -54,26 +54,26 @@ describe("GraphQL Endpoint", () => {
     it("should return entity samples (health check)", async () => {
       const data = await query<{
         Transaction: Array<{ id: string }>;
-        Resource: Array<{ id: string }>;
+        Tag: Array<{ id: string }>;
         Action: Array<{ id: string }>;
         CommitmentTreeRoot: Array<{ id: string }>;
       }>(`
         query {
           Transaction(limit: 100) { id }
-          Resource(limit: 100) { id }
+          Tag(limit: 100) { id }
           Action(limit: 100) { id }
           CommitmentTreeRoot(limit: 100) { id }
         }
       `);
 
       expect(data.Transaction).to.be.an("array");
-      expect(data.Resource).to.be.an("array");
+      expect(data.Tag).to.be.an("array");
       expect(data.Action).to.be.an("array");
       expect(data.CommitmentTreeRoot).to.be.an("array");
 
       console.log("\n  Entity counts (sampled up to 100):");
       console.log(`    Transactions: ${data.Transaction.length}`);
-      console.log(`    Resources: ${data.Resource.length}`);
+      console.log(`    Tags: ${data.Tag.length}`);
       console.log(`    Actions: ${data.Action.length}`);
       console.log(`    CommitmentTreeRoots: ${data.CommitmentTreeRoot.length}`);
     });
@@ -87,7 +87,7 @@ describe("GraphQL Endpoint", () => {
           txHash: string;
           blockNumber: number;
           chainId: number;
-          tags: string[];
+          tagHashes: string[];
           logicRefs: string[];
         }>;
       }>(`
@@ -97,7 +97,7 @@ describe("GraphQL Endpoint", () => {
             txHash
             blockNumber
             chainId
-            tags
+            tagHashes
             logicRefs
           }
         }
@@ -108,79 +108,74 @@ describe("GraphQL Endpoint", () => {
       if (data.Transaction.length > 0) {
         const tx = data.Transaction[0];
         expect(tx).to.have.property("txHash");
-        expect(tx).to.have.property("tags").that.is.an("array");
+        expect(tx).to.have.property("tagHashes").that.is.an("array");
         expect(tx).to.have.property("logicRefs").that.is.an("array");
         console.log(`\n  Latest tx: ${tx.txHash} (block ${tx.blockNumber})`);
       }
     });
   });
 
-  describe("Resources", () => {
-    it("should fetch resources with transaction relationship", async () => {
+  describe("Tags", () => {
+    it("should fetch tags with transaction relationship", async () => {
       const data = await query<{
-        Resource: Array<{
+        Tag: Array<{
           id: string;
-          tag: string;
+          tagHash: string;
           isConsumed: boolean;
-          decodingStatus: string;
           transaction: { txHash: string };
         }>;
       }>(`
         query {
-          Resource(limit: 5, order_by: {blockNumber: desc}) {
+          Tag(limit: 5, order_by: {blockNumber: desc}) {
             id
-            tag
+            tagHash
             isConsumed
-            decodingStatus
             transaction { txHash }
           }
         }
       `);
 
-      expect(data.Resource).to.be.an("array");
+      expect(data.Tag).to.be.an("array");
 
-      if (data.Resource.length > 0) {
-        const resource = data.Resource[0];
-        expect(resource).to.have.property("tag");
-        expect(resource).to.have.property("isConsumed").that.is.a("boolean");
-        expect(resource).to.have.property("decodingStatus");
-        expect(resource).to.have.property("transaction");
-        console.log(
-          `\n  Latest resource: ${resource.tag.slice(0, 20)}... (consumed: ${resource.isConsumed})`
-        );
+      if (data.Tag.length > 0) {
+        const tag = data.Tag[0];
+        expect(tag).to.have.property("tagHash");
+        expect(tag).to.have.property("isConsumed").that.is.a("boolean");
+        expect(tag).to.have.property("transaction");
+        console.log(`\n  Latest tag: ${tag.tagHash.slice(0, 20)}... (consumed: ${tag.isConsumed})`);
       }
     });
 
-    it("should filter consumed resources", async () => {
+    it("should filter consumed tags", async () => {
       const data = await query<{
-        Resource: Array<{ tag: string; isConsumed: boolean }>;
+        Tag: Array<{ tagHash: string; isConsumed: boolean }>;
       }>(`
         query {
-          Resource(where: {isConsumed: {_eq: true}}, limit: 3) {
-            tag
+          Tag(where: {isConsumed: {_eq: true}}, limit: 3) {
+            tagHash
             isConsumed
           }
         }
       `);
 
-      expect(data.Resource).to.be.an("array");
-      data.Resource.forEach((r) => expect(r.isConsumed).to.be.true);
+      expect(data.Tag).to.be.an("array");
+      data.Tag.forEach((t) => expect(t.isConsumed).to.be.true);
     });
 
-    it("should filter created resources", async () => {
+    it("should filter created tags", async () => {
       const data = await query<{
-        Resource: Array<{ tag: string; isConsumed: boolean }>;
+        Tag: Array<{ tagHash: string; isConsumed: boolean }>;
       }>(`
         query {
-          Resource(where: {isConsumed: {_eq: false}}, limit: 3) {
-            tag
+          Tag(where: {isConsumed: {_eq: false}}, limit: 3) {
+            tagHash
             isConsumed
           }
         }
       `);
 
-      expect(data.Resource).to.be.an("array");
-      data.Resource.forEach((r) => expect(r.isConsumed).to.be.false);
+      expect(data.Tag).to.be.an("array");
+      data.Tag.forEach((t) => expect(t.isConsumed).to.be.false);
     });
   });
 
@@ -190,7 +185,7 @@ describe("GraphQL Endpoint", () => {
         Action: Array<{
           id: string;
           actionTreeRoot: string;
-          tagCount: number;
+          actionTagCount: number;
           transaction: { txHash: string };
         }>;
       }>(`
@@ -198,7 +193,7 @@ describe("GraphQL Endpoint", () => {
           Action(limit: 5, order_by: {blockNumber: desc}) {
             id
             actionTreeRoot
-            tagCount
+            actionTagCount
             transaction { txHash }
           }
         }
@@ -209,7 +204,7 @@ describe("GraphQL Endpoint", () => {
       if (data.Action.length > 0) {
         const action = data.Action[0];
         expect(action).to.have.property("actionTreeRoot");
-        expect(action).to.have.property("tagCount").that.is.a("number");
+        expect(action).to.have.property("actionTagCount").that.is.a("number");
       }
     });
   });
@@ -241,14 +236,14 @@ describe("GraphQL Endpoint", () => {
     });
   });
 
-  describe("Transaction-Resource Relationship", () => {
-    it("should fetch transaction with all its resources", async () => {
+  describe("Transaction-Tag Relationship", () => {
+    it("should fetch transaction with all its tags", async () => {
       const data = await query<{
         Transaction: Array<{
           txHash: string;
-          tags: string[];
-          resources: Array<{
-            tag: string;
+          tagHashes: string[];
+          tags: Array<{
+            tagHash: string;
             isConsumed: boolean;
           }>;
         }>;
@@ -256,9 +251,9 @@ describe("GraphQL Endpoint", () => {
         query {
           Transaction(limit: 1) {
             txHash
-            tags
-            resources {
-              tag
+            tagHashes
+            tags {
+              tagHash
               isConsumed
             }
           }
@@ -269,15 +264,15 @@ describe("GraphQL Endpoint", () => {
 
       if (data.Transaction.length > 0) {
         const tx = data.Transaction[0];
-        expect(tx.resources).to.be.an("array");
+        expect(tx.tags).to.be.an("array");
 
         console.log(`\n  Transaction ${tx.txHash.slice(0, 20)}...`);
+        console.log(`    TagHashes: ${tx.tagHashes.length}`);
         console.log(`    Tags: ${tx.tags.length}`);
-        console.log(`    Resources: ${tx.resources.length}`);
 
         // Verify consumed/created pattern
-        const consumed = tx.resources.filter((r) => r.isConsumed).length;
-        const created = tx.resources.filter((r) => !r.isConsumed).length;
+        const consumed = tx.tags.filter((t) => t.isConsumed).length;
+        const created = tx.tags.filter((t) => !t.isConsumed).length;
         console.log(`    Consumed: ${consumed}, Created: ${created}`);
       }
     });

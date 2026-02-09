@@ -5,7 +5,7 @@
 # Enums
 # ============================================
 
-# Status of resource blob decoding
+# Status of payload blob decoding (used by resource payloads)
 enum DecodingStatus {
   pending   # Blob not yet received or processed
   raw       # Blob received but format is application-specific
@@ -19,10 +19,11 @@ enum DeletionCriterion {
   never        # Blob should be persisted permanently (value: 1)
 }
 
-# Payload type indicator
-enum PayloadKind {
+# Payload category indicator
+enum PayloadCategory {
+  resource      # ResourcePayload - resource blob data
   discovery     # DiscoveryPayload - data with public keys for discovery
-  forwarder     # ExternalPayload - data for external/forwarder calls
+  externalCall  # ExternalPayload - data for external/forwarder calls
   application   # ApplicationPayload - application-specific data
 }
 
@@ -60,7 +61,7 @@ type Transaction {
   contractAddress: String!
 
   # From TransactionExecuted event
-  tags: [String!]!
+  tagHashes: [String!]!
   logicRefs: [String!]!
 
   # Proofs (from calldata decoding)
@@ -70,9 +71,9 @@ type Transaction {
   # Relationship to EVM carrier
   evmTransaction: EVMTransaction!
 
-  # Relationships (note: resources is a convenience, canonical path is via actions/complianceUnits)
+  # Relationships (note: tags is a convenience, canonical path is via actions/complianceUnits)
   actions: [Action!]! @derivedFrom(field: "transaction")
-  resources: [Resource!]! @derivedFrom(field: "transaction")
+  tags: [Tag!]! @derivedFrom(field: "transaction")
 }
 
 # Action - Provides context separation between non-intersecting sets of resources
@@ -81,7 +82,7 @@ type Action {
   id: ID!
   index: Int!
   actionTreeRoot: String!
-  tagCount: Int!
+  actionTagCount: Int!
   blockNumber: Int!
   chainId: Int!
   timestamp: Int!
@@ -117,8 +118,8 @@ type ComplianceUnit {
 
   # Relationships
   action: Action!
-  consumedResource: Resource
-  createdResource: Resource
+  consumedTag: Tag
+  createdTag: Tag
 }
 
 # LogicInput - Logic verifier input for a resource
@@ -127,8 +128,8 @@ type LogicInput {
   id: ID!
   index: Int!
 
-  tag: String!
-  logicRef: String! # The logic verifying key (same as verifyingKey in PA-EVM)
+  tagHash: String!
+  verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
   isConsumed: Boolean!
   proof: String
 
@@ -140,17 +141,17 @@ type LogicInput {
 
   # Relationships
   action: Action!
-  resource: Resource
+  tag: Tag
 }
 
-# Resource - A reference to an Anoma resource identified by its tag (nullifier or commitment)
-# Note: The full Resource struct fields (labelRef, valueRef, etc.) cannot be populated
+# Tag - A reference to an Anoma resource identified by its tag hash (nullifier or commitment)
+# Note: Named "Tag" because it stores nullifiers/commitments (tags), not the Solidity Resource struct.
+# The full Resource struct fields (labelRef, valueRef, etc.) cannot be populated
 # because the ResourcePayload blob format is application-specific.
-type Resource {
+type Tag {
   id: ID!
-  tag: String! # Nullifier (if consumed) or commitment (if created)
+  tagHash: String! # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
-  blobIndex: Int # Index in ResourcePayload event (if emitted)
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: Int!
   chainId: Int!
@@ -158,33 +159,30 @@ type Resource {
   # Logic reference from TransactionExecuted.logicRefs
   logicRef: String
 
-  # Raw blob data from ResourcePayload event (if emitted)
-  rawBlob: String!
-  decodingStatus: DecodingStatus!
-  decodingError: String
-
   # Relationships
   transaction: Transaction!
   logicInput: LogicInput
-  complianceUnit: ComplianceUnit # The compliance unit this resource belongs to (use isConsumed to determine side)
-  payloads: [Payload!]! @derivedFrom(field: "resource")
+  complianceUnit: ComplianceUnit # The compliance unit this tag belongs to (use isConsumed to determine side)
+  payloads: [Payload!]! @derivedFrom(field: "tag")
 }
 
 # ============================================
 # Payload Types (from events)
 # ============================================
 
-# Unified Payload type for all payload events (Discovery, External, Application)
-# Note: blockNumber, chainId, timestamp can be accessed via resource.transaction
+# Unified Payload type for all payload events (Resource, Discovery, External, Application)
+# Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
   id: ID!
-  kind: PayloadKind!  # Discriminator for payload type
-  tag: String!
+  category: PayloadCategory!  # Discriminator for payload type
+  tagHash: String!
   index: Int!
   blob: String!
   deletionCriterion: DeletionCriterion
+  decodingStatus: DecodingStatus  # Only set for resource payloads
+  decodingError: String           # Only set for resource payloads on failure
 
-  resource: Resource
+  tag: Tag
 }
 
 # ============================================
@@ -205,13 +203,27 @@ type CommitmentTreeRoot {
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
 type ForwarderCall {
   id: ID!
-  forwarderAddress: String!
+  untrustedForwarder: String!
   input: String!
   output: String!
   blockNumber: Int!
   txHash: String!
   timestamp: Int!
   chainId: Int!
+}
+
+# ============================================
+# Distinct Logic Tracking
+# ============================================
+
+# LogicRef - Tracks each distinct logic verifying key seen on-chain
+# Used to compute the distinctLogics counter in Stats.
+type LogicRef {
+  id: ID!  # The logicRef hex value (bytes32)
+  firstSeenBlock: Int!
+  firstSeenTimestamp: Int!
+  firstSeenChainId: Int!
+  firstSeenTxHash: String!
 }
 
 # ============================================
@@ -223,13 +235,14 @@ type ForwarderCall {
 type Stats {
   id: ID!  # Always "global" - singleton pattern
   transactions: Int!
-  resources: Int!
-  resourcesConsumed: Int!
-  resourcesCreated: Int!
+  tags: Int!
+  tagsConsumed: Int!
+  tagsCreated: Int!
   actions: Int!
   complianceUnits: Int!
   logicInputs: Int!
   commitmentRoots: Int!
+  distinctLogics: Int!
   lastUpdatedBlock: Int!
   lastUpdatedTimestamp: Int!
 }
