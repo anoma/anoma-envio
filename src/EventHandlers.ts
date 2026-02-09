@@ -761,7 +761,7 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
 
     const entity: ForwarderCall = {
       id: eventId,
-      forwarderAddress: event.params.untrustedForwarder,
+      untrustedForwarder: event.params.untrustedForwarder,
       input: event.params.input,
       output: event.params.output,
       blockNumber: event.block.number,

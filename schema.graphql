@@ -205,7 +205,7 @@ type CommitmentTreeRoot {
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
 type ForwarderCall {
   id: ID!
-  forwarderAddress: String!
+  untrustedForwarder: String!
   input: String!
   output: String!
   blockNumber: Int!
