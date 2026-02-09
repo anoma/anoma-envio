@@ -396,13 +396,9 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
         id: tagId,
         tagHash: tagHash,
         index: index,
-        blobIndex: undefined,
         isConsumed: isConsumed,
         blockNumber: event.block.number,
         chainId: event.chainId,
-        rawBlob: "",
-        decodingStatus: "pending",
-        decodingError: undefined,
         transaction_id: txId,
         logicRef: logicRef || undefined,
         logicInput_id: logicInput_id,
@@ -622,44 +618,37 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 // ResourcePayload Handler
 // ============================================
 // ResourcePayload fires BEFORE TransactionExecuted.
-// We create/update the Resource but isConsumed will be set correctly by TransactionExecuted later.
+// Creates a Payload entity with kind "resource" and creates/updates the Tag entity.
 
 ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
   const tagId = createTagId(event.chainId, event.params.tag);
   const txId = createTransactionId(event.chainId, event.transaction.hash);
 
-  // Decode the blob
+  // Decode the blob for status tracking on the payload
   const decoded = safeDecodeResourceBlob(event.params.blob);
 
-  // Check if tag already exists
+  // Create Payload entity with kind "resource" (unified with other payload types)
+  const payloadEntity = createPayloadEntity(event, "resource", {
+    decodingStatus: decoded.status,
+    decodingError: decoded.error || undefined,
+  });
+  context.Payload.set(payloadEntity);
+
+  // Create/update Tag entity (without blob fields — blob data lives in Payload)
   const existingTag = await context.Tag.get(tagId);
 
   if (existingTag) {
-    // Update existing tag with blob data (preserve isConsumed if already set)
-    const updatedTag: Tag = {
-      ...existingTag,
-      blobIndex: Number(event.params.index),
-      rawBlob: event.params.blob,
-      decodingStatus: decoded.status,
-      decodingError: decoded.error || undefined,
-      // logicRef comes from TransactionExecuted, not from blob decoding
-      logicRef: existingTag.logicRef,
-    };
-    context.Tag.set(updatedTag);
+    // Tag already exists — no blob fields to update anymore
+    // logicRef comes from TransactionExecuted, not from blob decoding
   } else {
     // Create new tag - isConsumed will be updated by TransactionExecuted
-    // Use index 0 as placeholder (Tag Index will be set by TransactionExecuted)
     const tagEntity: Tag = {
       id: tagId,
       tagHash: event.params.tag,
       index: 0, // Placeholder - will be set by TransactionExecuted
-      blobIndex: Number(event.params.index),
       isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
       blockNumber: event.block.number,
       chainId: event.chainId,
-      rawBlob: event.params.blob,
-      decodingStatus: decoded.status,
-      decodingError: decoded.error || undefined,
       transaction_id: txId,
       logicRef: undefined, // Will be set by TransactionExecuted
       logicInput_id: undefined,
@@ -676,7 +665,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
 
 /**
  * Creates a Payload entity with the specified kind.
- * Note: blockNumber, chainId, timestamp are accessible via resource.transaction
+ * Note: blockNumber, chainId, timestamp are accessible via tag.transaction
  */
 function createPayloadEntity(
   event: {
@@ -686,7 +675,8 @@ function createPayloadEntity(
     srcAddress: string;
     params: { tag: string; index: bigint; blob: string };
   },
-  kind: "discovery" | "externalCall" | "application"
+  kind: "resource" | "discovery" | "externalCall" | "application",
+  extra?: { decodingStatus?: Payload["decodingStatus"]; decodingError?: string }
 ): Payload {
   const eventId = createEventId(event);
   const tagId = createTagId(event.chainId, event.params.tag);
@@ -698,6 +688,8 @@ function createPayloadEntity(
     index: Number(event.params.index),
     blob: event.params.blob,
     deletionCriterion: undefined, // Would need to decode from blob structure
+    decodingStatus: extra?.decodingStatus,
+    decodingError: extra?.decodingError,
     tag_id: tagId,
   };
 }

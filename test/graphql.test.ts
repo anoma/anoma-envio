@@ -122,7 +122,6 @@ describe("GraphQL Endpoint", () => {
           id: string;
           tagHash: string;
           isConsumed: boolean;
-          decodingStatus: string;
           transaction: { txHash: string };
         }>;
       }>(`
@@ -131,7 +130,6 @@ describe("GraphQL Endpoint", () => {
             id
             tagHash
             isConsumed
-            decodingStatus
             transaction { txHash }
           }
         }
@@ -143,7 +141,6 @@ describe("GraphQL Endpoint", () => {
         const tag = data.Tag[0];
         expect(tag).to.have.property("tagHash");
         expect(tag).to.have.property("isConsumed").that.is.a("boolean");
-        expect(tag).to.have.property("decodingStatus");
         expect(tag).to.have.property("transaction");
         console.log(`\n  Latest tag: ${tag.tagHash.slice(0, 20)}... (consumed: ${tag.isConsumed})`);
       }

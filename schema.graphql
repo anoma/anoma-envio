@@ -5,7 +5,7 @@
 # Enums
 # ============================================
 
-# Status of resource blob decoding
+# Status of payload blob decoding (used by resource payloads)
 enum DecodingStatus {
   pending   # Blob not yet received or processed
   raw       # Blob received but format is application-specific
@@ -21,6 +21,7 @@ enum DeletionCriterion {
 
 # Payload type indicator
 enum PayloadKind {
+  resource      # ResourcePayload - resource blob data
   discovery     # DiscoveryPayload - data with public keys for discovery
   externalCall  # ExternalPayload - data for external/forwarder calls
   application   # ApplicationPayload - application-specific data
@@ -151,18 +152,12 @@ type Tag {
   id: ID!
   tagHash: String! # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
-  blobIndex: Int # Index in ResourcePayload event (if emitted)
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: Int!
   chainId: Int!
 
   # Logic reference from TransactionExecuted.logicRefs
   logicRef: String
-
-  # Raw blob data from ResourcePayload event (if emitted)
-  rawBlob: String!
-  decodingStatus: DecodingStatus!
-  decodingError: String
 
   # Relationships
   transaction: Transaction!
@@ -175,8 +170,8 @@ type Tag {
 # Payload Types (from events)
 # ============================================
 
-# Unified Payload type for all payload events (Discovery, External, Application)
-# Note: blockNumber, chainId, timestamp can be accessed via resource.transaction
+# Unified Payload type for all payload events (Resource, Discovery, External, Application)
+# Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
   id: ID!
   kind: PayloadKind!  # Discriminator for payload type
@@ -184,6 +179,8 @@ type Payload {
   index: Int!
   blob: String!
   deletionCriterion: DeletionCriterion
+  decodingStatus: DecodingStatus  # Only set for resource payloads
+  decodingError: String           # Only set for resource payloads on failure
 
   tag: Tag
 }
