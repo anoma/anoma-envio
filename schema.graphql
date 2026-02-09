@@ -19,8 +19,8 @@ enum DeletionCriterion {
   never        # Blob should be persisted permanently (value: 1)
 }
 
-# Payload type indicator
-enum PayloadKind {
+# Payload category indicator
+enum PayloadCategory {
   resource      # ResourcePayload - resource blob data
   discovery     # DiscoveryPayload - data with public keys for discovery
   externalCall  # ExternalPayload - data for external/forwarder calls
@@ -174,7 +174,7 @@ type Tag {
 # Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
   id: ID!
-  kind: PayloadKind!  # Discriminator for payload type
+  category: PayloadCategory!  # Discriminator for payload type
   tagHash: String!
   index: Int!
   blob: String!

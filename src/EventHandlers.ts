@@ -618,7 +618,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 // ResourcePayload Handler
 // ============================================
 // ResourcePayload fires BEFORE TransactionExecuted.
-// Creates a Payload entity with kind "resource" and creates/updates the Tag entity.
+// Creates a Payload entity with category "resource" and creates/updates the Tag entity.
 
 ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
   const tagId = createTagId(event.chainId, event.params.tag);
@@ -627,7 +627,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
   // Decode the blob for status tracking on the payload
   const decoded = safeDecodeResourceBlob(event.params.blob);
 
-  // Create Payload entity with kind "resource" (unified with other payload types)
+  // Create Payload entity with category "resource" (unified with other payload types)
   const payloadEntity = createPayloadEntity(event, "resource", {
     decodingStatus: decoded.status,
     decodingError: decoded.error || undefined,
@@ -661,10 +661,10 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
 // ============================================
 // Payload Handlers (Discovery, External, Application)
 // ============================================
-// All three payload types are unified into a single Payload entity with a kind discriminator.
+// All payload types are unified into a single Payload entity with a category discriminator.
 
 /**
- * Creates a Payload entity with the specified kind.
+ * Creates a Payload entity with the specified category.
  * Note: blockNumber, chainId, timestamp are accessible via tag.transaction
  */
 function createPayloadEntity(
@@ -675,7 +675,7 @@ function createPayloadEntity(
     srcAddress: string;
     params: { tag: string; index: bigint; blob: string };
   },
-  kind: "resource" | "discovery" | "externalCall" | "application",
+  category: "resource" | "discovery" | "externalCall" | "application",
   extra?: { decodingStatus?: Payload["decodingStatus"]; decodingError?: string }
 ): Payload {
   const eventId = createEventId(event);
@@ -683,7 +683,7 @@ function createPayloadEntity(
 
   return {
     id: eventId,
-    kind: kind,
+    category: category,
     tagHash: event.params.tag,
     index: Number(event.params.index),
     blob: event.params.blob,
