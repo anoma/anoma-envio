@@ -17,9 +17,9 @@ export const EXECUTE_SELECTOR = "0xed3cf91f";
 export const DECODED_CALLDATA_CACHE_MAX_SIZE = 1000;
 
 /**
- * Resource index parity convention from TransactionExecuted events:
- * - Even indices (0, 2, 4...): consumed resources (nullifiers)
- * - Odd indices (1, 3, 5...): created resources (commitments)
+ * Tag index parity convention from TransactionExecuted events:
+ * - Even indices (0, 2, 4...): consumed tags (nullifiers)
+ * - Odd indices (1, 3, 5...): created tags (commitments)
  */
 export function isConsumedIndex(index: number): boolean {
   return index % 2 === 0;
@@ -29,7 +29,7 @@ export function isConsumedIndex(index: number): boolean {
  * ID format suffixes used in entity identifiers.
  */
 export const ID_SUFFIXES = {
-  RESOURCE: "_resource",
+  TAG: "",
   COMPLIANCE: "_compliance_",
   LOGIC: "_logic_",
 } as const;

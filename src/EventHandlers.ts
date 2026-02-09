@@ -17,7 +17,7 @@ import {
   ProtocolAdapter,
   EVMTransaction,
   Transaction,
-  Resource,
+  Tag,
   Action,
   ComplianceUnit,
   LogicInput,
@@ -113,11 +113,11 @@ function createTransactionId(chainId: number, txHash: string): string {
 }
 
 /**
- * Creates a resource identifier from chain and tag.
- * Tags are globally unique (cryptographic commitments/nullifiers).
+ * Creates a tag identifier from chain and tag hash.
+ * Tag hashes are globally unique (cryptographic commitments/nullifiers).
  */
-function createResourceId(chainId: number, tag: string): string {
-  return `${chainId}_${tag}_resource`;
+function createTagId(chainId: number, tagHash: string): string {
+  return `${chainId}_${tagHash}`;
 }
 
 /**
@@ -211,9 +211,9 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
   return {
     id: STATS_ID,
     transactions: 0,
-    resources: 0,
-    resourcesConsumed: 0,
-    resourcesCreated: 0,
+    tags: 0,
+    tagsConsumed: 0,
+    tagsCreated: 0,
     actions: 0,
     complianceUnits: 0,
     logicInputs: 0,
@@ -233,9 +233,9 @@ async function incrementStats(
   timestamp: number,
   increments: {
     transactions?: number;
-    resources?: number;
-    resourcesConsumed?: number;
-    resourcesCreated?: number;
+    tags?: number;
+    tagsConsumed?: number;
+    tagsCreated?: number;
     actions?: number;
     complianceUnits?: number;
     logicInputs?: number;
@@ -247,9 +247,9 @@ async function incrementStats(
   const updated: Stats = {
     ...stats,
     transactions: stats.transactions + (increments.transactions || 0),
-    resources: stats.resources + (increments.resources || 0),
-    resourcesConsumed: stats.resourcesConsumed + (increments.resourcesConsumed || 0),
-    resourcesCreated: stats.resourcesCreated + (increments.resourcesCreated || 0),
+    tags: stats.tags + (increments.tags || 0),
+    tagsConsumed: stats.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: stats.tagsCreated + (increments.tagsCreated || 0),
     actions: stats.actions + (increments.actions || 0),
     complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
     logicInputs: stats.logicInputs + (increments.logicInputs || 0),
@@ -307,7 +307,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     id: txId,
     logIndex: event.logIndex,
     contractAddress: event.srcAddress,
-    tags: event.params.tags,
+    tagHashes: event.params.tags,
     logicRefs: event.params.logicRefs,
     deltaProof: decoded?.deltaProof,
     aggregationProof: decoded?.aggregationProof,
@@ -360,42 +360,41 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     }
   }
 
-  // Update/Create Resource entities for each tag
+  // Update/Create Tag entities for each tag hash
   // Tags are in alternating order: consumed (nullifier), created (commitment), ...
   for (let index = 0; index < event.params.tags.length; index++) {
-    const tag = event.params.tags[index];
+    const tagHash = event.params.tags[index];
     const isConsumed = isConsumedIndex(index);
-    const resourceId = createResourceId(event.chainId, tag);
+    const tagId = createTagId(event.chainId, tagHash);
     const logicRef = event.params.logicRefs[index];
-    const _tagLower = tag.toLowerCase();
 
     // Find linked compliance unit and logic input
     // Note: complianceUnit_id will be set by ActionExecuted handler
-    // We use isConsumed to determine which side of the compliance unit this resource is on
+    // We use isConsumed to determine which side of the compliance unit this tag is on
     let complianceUnit_id: string | undefined;
     let logicInput_id: string | undefined;
 
-    // Check if resource already exists (created by earlier ResourcePayload event)
-    const existingResource = await context.Resource.get(resourceId);
+    // Check if tag already exists (created by earlier ResourcePayload event)
+    const existingTag = await context.Tag.get(tagId);
 
-    if (existingResource) {
-      // Update existing resource with authoritative isConsumed and index from TransactionExecuted
-      const updatedResource: Resource = {
-        ...existingResource,
+    if (existingTag) {
+      // Update existing tag with authoritative isConsumed and index from TransactionExecuted
+      const updatedTag: Tag = {
+        ...existingTag,
         index: index,
         isConsumed: isConsumed,
         transaction_id: txId,
-        logicRef: logicRef || existingResource.logicRef,
+        logicRef: logicRef || existingTag.logicRef,
         // Keep existing links if already set
-        logicInput_id: existingResource.logicInput_id || logicInput_id,
-        complianceUnit_id: existingResource.complianceUnit_id || complianceUnit_id,
+        logicInput_id: existingTag.logicInput_id || logicInput_id,
+        complianceUnit_id: existingTag.complianceUnit_id || complianceUnit_id,
       };
-      context.Resource.set(updatedResource);
+      context.Tag.set(updatedTag);
     } else {
-      // Create new resource (ResourcePayload may not have fired yet or at all)
-      const resourceEntity: Resource = {
-        id: resourceId,
-        tag: tag,
+      // Create new tag (ResourcePayload may not have fired yet or at all)
+      const tagEntity: Tag = {
+        id: tagId,
+        tagHash: tagHash,
         index: index,
         blobIndex: undefined,
         isConsumed: isConsumed,
@@ -409,7 +408,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
         logicInput_id: logicInput_id,
         complianceUnit_id: complianceUnit_id,
       };
-      context.Resource.set(resourceEntity);
+      context.Tag.set(tagEntity);
     }
   }
 
@@ -433,15 +432,15 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   }
 
   // Update global stats
-  const totalResources = event.params.tags.length;
-  const consumedCount = Math.floor(totalResources / 2);
-  const createdCount = totalResources - consumedCount;
+  const totalTags = event.params.tags.length;
+  const consumedCount = Math.floor(totalTags / 2);
+  const createdCount = totalTags - consumedCount;
 
   await incrementStats(context, event.block.number, event.block.timestamp, {
     transactions: 1,
-    resources: totalResources,
-    resourcesConsumed: consumedCount,
-    resourcesCreated: createdCount,
+    tags: totalTags,
+    tagsConsumed: consumedCount,
+    tagsCreated: createdCount,
     distinctLogics: newLogicCount,
   });
 
@@ -521,13 +520,13 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       const cu = decodedAction.complianceVerifierInputs[cuIndex];
       const complianceUnitId = createComplianceUnitId(actionId, cuIndex);
 
-      // Find resources by nullifier/commitment
-      const consumedResourceId = createResourceId(event.chainId, cu.instance.consumed.nullifier);
-      const createdResourceId = createResourceId(event.chainId, cu.instance.created.commitment);
+      // Find tags by nullifier/commitment
+      const consumedTagId = createTagId(event.chainId, cu.instance.consumed.nullifier);
+      const createdTagId = createTagId(event.chainId, cu.instance.created.commitment);
 
-      // Try to get existing resources to link
-      const consumedResource = await context.Resource.get(consumedResourceId);
-      const createdResource = await context.Resource.get(createdResourceId);
+      // Try to get existing tags to link
+      const consumedTag = await context.Tag.get(consumedTagId);
+      const createdTag = await context.Tag.get(createdTagId);
 
       const complianceEntity: ComplianceUnit = {
         id: complianceUnitId,
@@ -541,28 +540,28 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
         unitDeltaX: cu.instance.unitDeltaX,
         unitDeltaY: cu.instance.unitDeltaY,
         action_id: actionId,
-        consumedResource_id: consumedResource ? consumedResourceId : undefined,
-        createdResource_id: createdResource ? createdResourceId : undefined,
+        consumedTag_id: consumedTag ? consumedTagId : undefined,
+        createdTag_id: createdTag ? createdTagId : undefined,
       };
 
       context.ComplianceUnit.set(complianceEntity);
 
-      // Update resources with compliance unit link if they exist
-      // The isConsumed field on the resource determines which side of the unit it's on
-      if (consumedResource) {
-        const updatedResource: Resource = {
-          ...consumedResource,
+      // Update tags with compliance unit link if they exist
+      // The isConsumed field on the tag determines which side of the unit it's on
+      if (consumedTag) {
+        const updatedTag: Tag = {
+          ...consumedTag,
           complianceUnit_id: complianceUnitId,
         };
-        context.Resource.set(updatedResource);
+        context.Tag.set(updatedTag);
       }
 
-      if (createdResource) {
-        const updatedResource: Resource = {
-          ...createdResource,
+      if (createdTag) {
+        const updatedTag: Tag = {
+          ...createdTag,
           complianceUnit_id: complianceUnitId,
         };
-        context.Resource.set(updatedResource);
+        context.Tag.set(updatedTag);
       }
     }
 
@@ -574,14 +573,14 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       // Determine if consumed based on index (even = consumed, odd = created)
       const isConsumed = isConsumedIndex(liIndex);
 
-      // Find resource by tag
-      const resourceId = createResourceId(event.chainId, li.tag);
-      const resource = await context.Resource.get(resourceId);
+      // Find tag by tag hash
+      const tagId = createTagId(event.chainId, li.tag);
+      const existingTag = await context.Tag.get(tagId);
 
       const logicEntity: LogicInput = {
         id: logicInputId,
         index: liIndex,
-        tag: li.tag,
+        tagHash: li.tag,
         verifyingKey: li.verifyingKey,
         isConsumed: isConsumed,
         proof: li.proof || undefined,
@@ -590,18 +589,18 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
         externalPayloadCount: li.appData.externalPayload.length,
         applicationPayloadCount: li.appData.applicationPayload.length,
         action_id: actionId,
-        resource_id: resource ? resourceId : undefined,
+        tag_id: existingTag ? tagId : undefined,
       };
 
       context.LogicInput.set(logicEntity);
 
-      // Update resource with logic input link if it exists
-      if (resource) {
-        const updatedResource: Resource = {
-          ...resource,
+      // Update tag with logic input link if it exists
+      if (existingTag) {
+        const updatedTag: Tag = {
+          ...existingTag,
           logicInput_id: logicInputId,
         };
-        context.Resource.set(updatedResource);
+        context.Tag.set(updatedTag);
       }
     }
 
@@ -626,33 +625,33 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 // We create/update the Resource but isConsumed will be set correctly by TransactionExecuted later.
 
 ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
-  const resourceId = createResourceId(event.chainId, event.params.tag);
+  const tagId = createTagId(event.chainId, event.params.tag);
   const txId = createTransactionId(event.chainId, event.transaction.hash);
 
   // Decode the blob
   const decoded = safeDecodeResourceBlob(event.params.blob);
 
-  // Check if resource already exists
-  const existingResource = await context.Resource.get(resourceId);
+  // Check if tag already exists
+  const existingTag = await context.Tag.get(tagId);
 
-  if (existingResource) {
-    // Update existing resource with blob data (preserve isConsumed if already set)
-    const updatedResource: Resource = {
-      ...existingResource,
+  if (existingTag) {
+    // Update existing tag with blob data (preserve isConsumed if already set)
+    const updatedTag: Tag = {
+      ...existingTag,
       blobIndex: Number(event.params.index),
       rawBlob: event.params.blob,
       decodingStatus: decoded.status,
       decodingError: decoded.error || undefined,
       // logicRef comes from TransactionExecuted, not from blob decoding
-      logicRef: existingResource.logicRef,
+      logicRef: existingTag.logicRef,
     };
-    context.Resource.set(updatedResource);
+    context.Tag.set(updatedTag);
   } else {
-    // Create new resource - isConsumed will be updated by TransactionExecuted
+    // Create new tag - isConsumed will be updated by TransactionExecuted
     // Use index 0 as placeholder (Tag Index will be set by TransactionExecuted)
-    const resourceEntity: Resource = {
-      id: resourceId,
-      tag: event.params.tag,
+    const tagEntity: Tag = {
+      id: tagId,
+      tagHash: event.params.tag,
       index: 0, // Placeholder - will be set by TransactionExecuted
       blobIndex: Number(event.params.index),
       isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
@@ -666,7 +665,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
       logicInput_id: undefined,
       complianceUnit_id: undefined,
     };
-    context.Resource.set(resourceEntity);
+    context.Tag.set(tagEntity);
   }
 });
 
@@ -690,16 +689,16 @@ function createPayloadEntity(
   kind: "discovery" | "externalCall" | "application"
 ): Payload {
   const eventId = createEventId(event);
-  const resourceId = createResourceId(event.chainId, event.params.tag);
+  const tagId = createTagId(event.chainId, event.params.tag);
 
   return {
     id: eventId,
     kind: kind,
-    tag: event.params.tag,
+    tagHash: event.params.tag,
     index: Number(event.params.index),
     blob: event.params.blob,
     deletionCriterion: undefined, // Would need to decode from blob structure
-    resource_id: resourceId,
+    tag_id: tagId,
   };
 }
 
