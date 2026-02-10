@@ -277,4 +277,46 @@ describe("GraphQL Endpoint", () => {
       }
     });
   });
+
+  describe("External Call Payloads", () => {
+    it("should fetch externalCall payloads from decoded calldata", async () => {
+      const data = await query<{
+        Payload: Array<{
+          id: string;
+          category: string;
+          tagHash: string;
+          blob: string;
+          deletionCriterion: string | null;
+        }>;
+      }>(`
+        query {
+          Payload(limit: 10, where: {category: {_eq: "externalCall"}}) {
+            id
+            category
+            tagHash
+            blob
+            deletionCriterion
+          }
+        }
+      `);
+
+      expect(data.Payload).to.be.an("array");
+
+      if (data.Payload.length > 0) {
+        const p = data.Payload[0];
+        expect(p.category).to.equal("externalCall");
+        expect(p).to.have.property("tagHash").that.is.a("string");
+        expect(p).to.have.property("blob").that.is.a("string");
+
+        console.log(`\n  External Call Payloads found: ${data.Payload.length}`);
+        console.log(`    First: ${p.id}`);
+        console.log(`    Tag: ${p.tagHash.slice(0, 20)}...`);
+        console.log(`    DeletionCriterion: ${p.deletionCriterion ?? "null"}`);
+      } else {
+        console.log(
+          "\n  No externalCall payloads indexed yet (expected if no external calls on-chain)"
+        );
+      }
+    });
+  });
 });
