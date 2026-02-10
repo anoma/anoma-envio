@@ -251,3 +251,25 @@ type Stats {
   lastUpdatedBlock: Int!
   lastUpdatedTimestamp: Int!
 }
+
+# DailyStats - Per-day statistics for time-series charts (id: "YYYY-MM-DD")
+# Same counters as Stats (except distinctLogics) bucketed by UTC day.
+type DailyStats {
+  id: ID!               # "YYYY-MM-DD" — sortable, deterministic
+  dayTimestamp: Int!     # Start-of-day Unix timestamp (midnight UTC)
+  transactions: Int!
+  tags: Int!
+  tagsConsumed: Int!
+  tagsCreated: Int!
+  actions: Int!
+  complianceUnits: Int!
+  logicInputs: Int!
+  commitmentRoots: Int!
+  externalCalls: Int!
+  forwarderCalls: Int!
+  resourcePayloads: Int!
+  discoveryPayloads: Int!
+  applicationPayloads: Int!
+  lastUpdatedBlock: Int!
+  lastUpdatedTimestamp: Int!
+}

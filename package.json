@@ -9,7 +9,7 @@
     "codegen": "pnpm envio codegen",
     "dev": "pnpm envio dev",
     "start": "pnpm envio start",
-    "test": "ts-mocha --timeout 10000 test/**/*.test.ts",
+    "test": "ts-mocha --timeout 10000 'test/**/*.test.ts' 'test/*.test.ts'",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",

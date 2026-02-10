@@ -33,3 +33,24 @@ export const ID_SUFFIXES = {
   COMPLIANCE: "_compliance_",
   LOGIC: "_logic_",
 } as const;
+
+/**
+ * Number of seconds in a UTC day.
+ */
+export const SECONDS_PER_DAY = 86400;
+
+/**
+ * Converts a Unix timestamp (seconds) to a UTC day key and start-of-day timestamp.
+ * Used by DailyStats to bucket counters by calendar day.
+ */
+export function getUTCDay(timestampSeconds: number): {
+  dateKey: string;
+  dayTimestamp: number;
+} {
+  const dayTimestamp = Math.floor(timestampSeconds / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+  const date = new Date(dayTimestamp * 1000);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return { dateKey: `${year}-${month}-${day}`, dayTimestamp };
+}
