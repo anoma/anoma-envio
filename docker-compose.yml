@@ -1,0 +1,125 @@
+networks:
+  anoma-network:
+    name: anoma-network # explicit name makes it shareable with other docker compose projects.
+
+volumes:
+  postgres:
+
+services:
+  #----------------------------------------------------------------------------
+  # Postgres database for Hasura
+
+  postgres:
+    restart: unless-stopped
+    image: postgres:17.5
+    ports:
+      - 5432:5432
+    volumes:
+      # remove this volume if you want the database to be recreated each time
+      - postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: envio
+    networks:
+      - anoma-network
+    healthcheck:
+      test: pg_isready -U postgres -d envio
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  #----------------------------------------------------------------------------
+  # Hasura GraphQL endpoint
+  #
+  # Env var documentation:
+  # https://hasura.io/docs/latest/graphql/core/deployment/docker/index.html#environment-variables
+
+  hasura:
+    user: 1001:1001
+    restart: unless-stopped
+    image: hasura/graphql-engine:v2.43.0
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:postgres@postgres:5432/envio
+      HASURA_GRAPHQL_ENABLE_CONSOLE: true
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES:
+        startup, http-log, webhook-log, websocket-log,
+        query-log
+      HASURA_GRAPHQL_LOG_LEVEL: warn
+      HASURA_GRAPHQL_ADMIN_SECRET: testing
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: true
+      PORT: 8080
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 5s
+      timeout: 2s
+      retries: 50
+      start_period: 5s
+    networks:
+      - anoma-network
+
+  #----------------------------------------------------------------------------
+  # Envio Indexer
+  #
+  # Environment variable documentation:
+  # https://docs.envio.dev/docs/HyperIndex/environment-variables
+  # but some are also here:
+  # https://github.com/enviodev/local-docker-example?tab=readme-ov-file#environment-variables
+
+  # this profile builds the local image from scratch
+  envio-indexer: &envio-indexer
+    profiles:
+      - build
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 9898:9898
+    depends_on:
+      hasura:
+        condition: service_healthy
+    environment:
+      # envio config params
+      ENVIO_API_TOKEN: ${ENVIO_API_TOKEN}
+      ENVIO_HASURA: true
+      LOG_LEVEL: warn
+      LOG_STRATEGY: console-pretty
+      TUI_OFF: true
+      CONFIG_FILE: config.yaml
+
+      # database configuration
+      ENVIO_PG_PASSWORD: postgres
+      ENVIO_PG_HOST: postgres
+      ENVIO_PG_USER: postgres
+      ENVIO_PG_PORT: 5432
+      ENVIO_PG_DATABASE: envio
+      ENVIO_PG_PUBLIC_SCHEMA: envio
+
+      # hasura configuration
+      HASURA_GRAPHQL_ENDPOINT: http://hasura:8080/v1/metadata
+      HASURA_GRAPHQL_ADMIN_SECRET: testing
+      HASURA_SERVICE_HOST: hasura
+      HASURA_SERVICE_PORT: 8080
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/9898' || exit 1
+      interval: 5s
+      timeout: 2s
+      retries: 50
+      start_period: 5s
+    networks:
+      - anoma-network
+
+  # defines the same envio service but runs the image from the repository
+  # instead of building it locally.
+  envio-indexer-image:
+    <<: *envio-indexer
+    image: ghcr.io/anoma/anoma-envio:envio-branch-main
+    profiles:
+      - prebuilt

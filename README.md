@@ -44,6 +44,22 @@ pnpm start
 
 ### Running the Docker Image
 
+This repository holds a `docker-compose.yml` file to easily start the Anoma Envio indexer locally. It can either use an image from the registry on GitHub, or you can build the image locally first.
+
+To build locally and then run, use the `build` profile.
+
+```bash
+docker compose --profile build build --no-cache
+docker compose --profile build up
+```
+
+To run the latest image from the GitHub registry use the `prebuilt` profile.
+You can choose another image by changing the compose file accordingly.
+
+```bash
+docker compose --profile prebuilt up
+```
+
 On every push to `main`, CI publishes a Docker image to GitHub Container Registry:
 
 ```bash
@@ -53,7 +69,7 @@ docker run --rm -p 9898:9898 ghcr.io/anoma/anoma-envio:envio-branch-main
 
 ## Configuration
 
-The indexer is configured through two files — there are no environment variables needed for running the indexer itself.
+The indexer is configured through two files and environment variables (see below for Docker Compose deployments).
 
 ### `config.yaml`
 
@@ -85,9 +101,28 @@ Defines the GraphQL entities that get stored and queried. Core entities: `EVMTra
 
 ### Environment Variables
 
-| Variable            | Required?   | Description                                          |
-|---------------------|-------------|------------------------------------------------------|
-| `ENVIO_GRAPHQL_URL` | Tests only  | GraphQL endpoint URL used by the integration tests   |
+These are configured in `docker-compose.yml` for containerized deployments. When running locally with `pnpm dev`, Envio manages these automatically.
+
+| Variable                      | Required?  | Default                          | Description                                               |
+|-------------------------------|------------|----------------------------------|-----------------------------------------------------------|
+| `ENVIO_API_TOKEN`             | No         | —                                | HyperSync API token                                       |
+| `ENVIO_HASURA`                | Yes        | `true`                           | Enable Hasura GraphQL integration                         |
+| `LOG_LEVEL`                   | No         | `warn`                           | Log verbosity (`trace`, `debug`, `info`, `warn`, `error`) |
+| `LOG_STRATEGY`                | No         | `console-pretty`                 | Logging output format                                     |
+| `TUI_OFF`                     | No         | `true`                           | Disable the terminal UI (required in Docker)              |
+| `CONFIG_FILE`                 | No         | `config.yaml`                    | Path to the indexer configuration file                    |
+| `ENVIO_PG_HOST`               | Yes        | `postgres`                       | Postgres hostname                                         |
+| `ENVIO_PG_PORT`               | Yes        | `5432`                           | Postgres port                                             |
+| `ENVIO_PG_USER`               | Yes        | `postgres`                       | Postgres user                                             |
+| `ENVIO_PG_PASSWORD`           | Yes        | `postgres`                       | Postgres password                                         |
+| `ENVIO_PG_DATABASE`           | Yes        | `envio`                          | Postgres database name                                    |
+| `ENVIO_PG_PUBLIC_SCHEMA`      | Yes        | `envio`                          | Postgres schema for indexed data                          |
+| `HASURA_GRAPHQL_ENDPOINT`     | Yes        | `http://hasura:8080/v1/metadata` | Hasura metadata API endpoint                              |
+| `HASURA_GRAPHQL_ADMIN_SECRET` | Yes        | `testing`                        | Hasura admin secret                                       |
+| `HASURA_SERVICE_HOST`         | Yes        | `hasura`                         | Hasura hostname                                           |
+| `HASURA_SERVICE_PORT`         | Yes        | `8080`                           | Hasura port                                               |
+| `ENVIO_GRAPHQL_URL`           | Tests only | —                                | GraphQL endpoint URL used by the integration tests        |
+
 
 ## External Dependencies
 
