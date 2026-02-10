@@ -120,6 +120,6 @@ services:
   # instead of building it locally.
   envio-indexer-image:
     <<: *envio-indexer
-    image: ghcr.io/anoma/anoma-envio:envio-branch-main
+    image: ghcr.io/anoma/anoma-envio:main-envio-
     profiles:
       - prebuilt
