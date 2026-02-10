@@ -39,7 +39,7 @@ import {
 
 import { safeDecodeResourceBlob } from "./decoders/ResourceDecoder";
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder";
-import type { Action as DecodedAction } from "./types";
+import { DeletionCriterion, type Action as DecodedAction } from "./types";
 import { BoundedCache } from "./utils/BoundedCache";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE, isConsumedIndex } from "./constants";
 
@@ -589,6 +589,25 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       };
 
       context.LogicInput.set(logicEntity);
+
+      // Create Payload entities for external payloads from decoded calldata
+      for (let epIdx = 0; epIdx < li.appData.externalPayload.length; epIdx++) {
+        const ep = li.appData.externalPayload[epIdx];
+        const payloadId = `${logicInputId}_externalCall_${epIdx}`;
+
+        context.Payload.set({
+          id: payloadId,
+          category: "externalCall",
+          tagHash: li.tag,
+          index: epIdx,
+          blob: ep.blob,
+          deletionCriterion:
+            ep.deletionCriterion === DeletionCriterion.Immediately ? "immediately" : "never",
+          decodingStatus: undefined,
+          decodingError: undefined,
+          tag_id: tagId,
+        });
+      }
 
       // Update tag with logic input link if it exists
       if (existingTag) {
