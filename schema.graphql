@@ -243,6 +243,11 @@ type Stats {
   logicInputs: Int!
   commitmentRoots: Int!
   distinctLogics: Int!
+  externalCalls: Int!
+  forwarderCalls: Int!
+  resourcePayloads: Int!
+  discoveryPayloads: Int!
+  applicationPayloads: Int!
   lastUpdatedBlock: Int!
   lastUpdatedTimestamp: Int!
 }

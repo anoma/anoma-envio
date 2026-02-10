@@ -219,6 +219,11 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
     logicInputs: 0,
     commitmentRoots: 0,
     distinctLogics: 0,
+    externalCalls: 0,
+    forwarderCalls: 0,
+    resourcePayloads: 0,
+    discoveryPayloads: 0,
+    applicationPayloads: 0,
     lastUpdatedBlock: 0,
     lastUpdatedTimestamp: 0,
   };
@@ -241,6 +246,11 @@ async function incrementStats(
     logicInputs?: number;
     commitmentRoots?: number;
     distinctLogics?: number;
+    externalCalls?: number;
+    forwarderCalls?: number;
+    resourcePayloads?: number;
+    discoveryPayloads?: number;
+    applicationPayloads?: number;
   }
 ): Promise<void> {
   const stats = await getOrCreateStats(context);
@@ -255,6 +265,11 @@ async function incrementStats(
     logicInputs: stats.logicInputs + (increments.logicInputs || 0),
     commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
     distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
+    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
     lastUpdatedBlock: blockNumber,
     lastUpdatedTimestamp: timestamp,
   };
@@ -653,6 +668,11 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
   });
   context.Payload.set(payloadEntity);
 
+  // Update stats
+  await incrementStats(context, event.block.number, event.block.timestamp, {
+    resourcePayloads: 1,
+  });
+
   // Create/update Tag entity (without blob fields — blob data lives in Payload)
   const existingTag = await context.Tag.get(tagId);
 
@@ -713,22 +733,31 @@ function createPayloadEntity(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPayloadArgs) => {
   const entity = createPayloadEntity(event, "discovery");
   context.Payload.set(entity);
+
+  await incrementStats(context, event.block.number, event.block.timestamp, {
+    discoveryPayloads: 1,
+  });
 });
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPayloadArgs) => {
   const entity = createPayloadEntity(event, "externalCall");
   context.Payload.set(entity);
+
+  await incrementStats(context, event.block.number, event.block.timestamp, {
+    externalCalls: 1,
+  });
 });
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.ApplicationPayload.handler(async ({ event, context }: ApplicationPayloadArgs) => {
   const entity = createPayloadEntity(event, "application");
   context.Payload.set(entity);
+
+  await incrementStats(context, event.block.number, event.block.timestamp, {
+    applicationPayloads: 1,
+  });
 });
 
 // ============================================
@@ -765,7 +794,6 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
 // ============================================
 
 ProtocolAdapter.ForwarderCallExecuted.handler(
-  // eslint-disable-next-line @typescript-eslint/require-await
   async ({ event, context }: ForwarderCallExecutedArgs) => {
     const eventId = createEventId(event);
 
@@ -781,5 +809,9 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
     };
 
     context.ForwarderCall.set(entity);
+
+    await incrementStats(context, event.block.number, event.block.timestamp, {
+      forwarderCalls: 1,
+    });
   }
 );
