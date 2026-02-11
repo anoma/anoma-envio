@@ -10,16 +10,7 @@
 
 import { expect } from "chai";
 
-const GRAPHQL_URL: string = (() => {
-  const url = process.env.ENVIO_GRAPHQL_URL;
-  if (!url) {
-    throw new Error(
-      "ENVIO_GRAPHQL_URL environment variable is required. " +
-        "Set it to your Envio Hyperindex GraphQL endpoint."
-    );
-  }
-  return url;
-})();
+const GRAPHQL_URL: string | undefined = process.env.ENVIO_GRAPHQL_URL;
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -27,7 +18,7 @@ interface GraphQLResponse<T> {
 }
 
 async function query<T>(queryString: string): Promise<T> {
-  const response = await fetch(GRAPHQL_URL, {
+  const response = await fetch(GRAPHQL_URL!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query: queryString }),
@@ -42,7 +33,13 @@ async function query<T>(queryString: string): Promise<T> {
   return result.data as T;
 }
 
-describe("GraphQL Endpoint", () => {
+describe("GraphQL Endpoint", function () {
+  before(function () {
+    if (!GRAPHQL_URL) {
+      this.skip();
+    }
+  });
+
   describe("Connection", () => {
     it("should connect to the endpoint", async () => {
       const data = await query<{ __typename: string }>(`{ __typename }`);
@@ -84,21 +81,17 @@ describe("GraphQL Endpoint", () => {
       const data = await query<{
         Transaction: Array<{
           id: string;
-          txHash: string;
-          blockNumber: number;
-          chainId: number;
           tagHashes: string[];
           logicRefs: string[];
+          evmTransaction: { txHash: string; blockNumber: number; chainId: number };
         }>;
       }>(`
         query {
-          Transaction(limit: 5, order_by: {blockNumber: desc}) {
+          Transaction(limit: 5, order_by: {evmTransaction: {blockNumber: desc}}) {
             id
-            txHash
-            blockNumber
-            chainId
             tagHashes
             logicRefs
+            evmTransaction { txHash blockNumber chainId }
           }
         }
       `);
@@ -107,10 +100,13 @@ describe("GraphQL Endpoint", () => {
 
       if (data.Transaction.length > 0) {
         const tx = data.Transaction[0];
-        expect(tx).to.have.property("txHash");
+        expect(tx).to.have.property("evmTransaction");
+        expect(tx.evmTransaction).to.have.property("txHash");
         expect(tx).to.have.property("tagHashes").that.is.an("array");
         expect(tx).to.have.property("logicRefs").that.is.an("array");
-        console.log(`\n  Latest tx: ${tx.txHash} (block ${tx.blockNumber})`);
+        console.log(
+          `\n  Latest tx: ${tx.evmTransaction.txHash} (block ${tx.evmTransaction.blockNumber})`
+        );
       }
     });
   });
@@ -122,7 +118,7 @@ describe("GraphQL Endpoint", () => {
           id: string;
           tagHash: string;
           isConsumed: boolean;
-          transaction: { txHash: string };
+          transaction: { evmTransaction: { txHash: string } };
         }>;
       }>(`
         query {
@@ -130,7 +126,7 @@ describe("GraphQL Endpoint", () => {
             id
             tagHash
             isConsumed
-            transaction { txHash }
+            transaction { evmTransaction { txHash } }
           }
         }
       `);
@@ -186,7 +182,7 @@ describe("GraphQL Endpoint", () => {
           id: string;
           actionTreeRoot: string;
           actionTagCount: number;
-          transaction: { txHash: string };
+          transaction: { evmTransaction: { txHash: string } };
         }>;
       }>(`
         query {
@@ -194,7 +190,7 @@ describe("GraphQL Endpoint", () => {
             id
             actionTreeRoot
             actionTagCount
-            transaction { txHash }
+            transaction { evmTransaction { txHash } }
           }
         }
       `);
@@ -240,7 +236,7 @@ describe("GraphQL Endpoint", () => {
     it("should fetch transaction with all its tags", async () => {
       const data = await query<{
         Transaction: Array<{
-          txHash: string;
+          evmTransaction: { txHash: string };
           tagHashes: string[];
           tags: Array<{
             tagHash: string;
@@ -250,7 +246,7 @@ describe("GraphQL Endpoint", () => {
       }>(`
         query {
           Transaction(limit: 1) {
-            txHash
+            evmTransaction { txHash }
             tagHashes
             tags {
               tagHash
@@ -266,7 +262,7 @@ describe("GraphQL Endpoint", () => {
         const tx = data.Transaction[0];
         expect(tx.tags).to.be.an("array");
 
-        console.log(`\n  Transaction ${tx.txHash.slice(0, 20)}...`);
+        console.log(`\n  Transaction ${tx.evmTransaction.txHash.slice(0, 20)}...`);
         console.log(`    TagHashes: ${tx.tagHashes.length}`);
         console.log(`    Tags: ${tx.tags.length}`);
 

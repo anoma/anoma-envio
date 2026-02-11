@@ -26,6 +26,7 @@ import {
   CommitmentTreeRoot,
   ForwarderCall,
   Stats,
+  DailyStats,
   handlerContext,
   ProtocolAdapter_TransactionExecuted_event,
   ProtocolAdapter_ActionExecuted_event,
@@ -41,7 +42,7 @@ import { safeDecodeResourceBlob } from "./decoders/ResourceDecoder";
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder";
 import { DeletionCriterion, type Action as DecodedAction } from "./types";
 import { BoundedCache } from "./utils/BoundedCache";
-import { DECODED_CALLDATA_CACHE_MAX_SIZE, isConsumedIndex } from "./constants";
+import { DECODED_CALLDATA_CACHE_MAX_SIZE, isConsumedIndex, getUTCDay } from "./constants";
 
 // ============================================
 // Type Aliases
@@ -219,6 +220,11 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
     logicInputs: 0,
     commitmentRoots: 0,
     distinctLogics: 0,
+    externalCalls: 0,
+    forwarderCalls: 0,
+    resourcePayloads: 0,
+    discoveryPayloads: 0,
+    applicationPayloads: 0,
     lastUpdatedBlock: 0,
     lastUpdatedTimestamp: 0,
   };
@@ -241,6 +247,11 @@ async function incrementStats(
     logicInputs?: number;
     commitmentRoots?: number;
     distinctLogics?: number;
+    externalCalls?: number;
+    forwarderCalls?: number;
+    resourcePayloads?: number;
+    discoveryPayloads?: number;
+    applicationPayloads?: number;
   }
 ): Promise<void> {
   const stats = await getOrCreateStats(context);
@@ -255,10 +266,127 @@ async function incrementStats(
     logicInputs: stats.logicInputs + (increments.logicInputs || 0),
     commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
     distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
+    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
     lastUpdatedBlock: blockNumber,
     lastUpdatedTimestamp: timestamp,
   };
   context.Stats.set(updated);
+}
+
+// ============================================
+// DailyStats (per-day bucketing)
+// ============================================
+
+/**
+ * Gets the current daily stats for the given timestamp or creates a new one with zero counts.
+ */
+async function getOrCreateDailyStats(
+  context: handlerContext,
+  timestamp: number
+): Promise<DailyStats> {
+  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
+  const existing = await context.DailyStats.get(dateKey);
+  if (existing) {
+    return existing;
+  }
+  return {
+    id: dateKey,
+    dayTimestamp,
+    transactions: 0,
+    tags: 0,
+    tagsConsumed: 0,
+    tagsCreated: 0,
+    actions: 0,
+    complianceUnits: 0,
+    logicInputs: 0,
+    commitmentRoots: 0,
+    externalCalls: 0,
+    forwarderCalls: 0,
+    resourcePayloads: 0,
+    discoveryPayloads: 0,
+    applicationPayloads: 0,
+    lastUpdatedBlock: 0,
+    lastUpdatedTimestamp: 0,
+  };
+}
+
+/**
+ * Updates daily stats with increments and saves to context.
+ * Same as incrementStats but keyed by UTC day. Ignores distinctLogics.
+ */
+async function incrementDailyStats(
+  context: handlerContext,
+  blockNumber: number,
+  timestamp: number,
+  increments: {
+    transactions?: number;
+    tags?: number;
+    tagsConsumed?: number;
+    tagsCreated?: number;
+    actions?: number;
+    complianceUnits?: number;
+    logicInputs?: number;
+    commitmentRoots?: number;
+    externalCalls?: number;
+    forwarderCalls?: number;
+    resourcePayloads?: number;
+    discoveryPayloads?: number;
+    applicationPayloads?: number;
+  }
+): Promise<void> {
+  const daily = await getOrCreateDailyStats(context, timestamp);
+  const updated: DailyStats = {
+    ...daily,
+    transactions: daily.transactions + (increments.transactions || 0),
+    tags: daily.tags + (increments.tags || 0),
+    tagsConsumed: daily.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: daily.tagsCreated + (increments.tagsCreated || 0),
+    actions: daily.actions + (increments.actions || 0),
+    complianceUnits: daily.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: daily.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: daily.commitmentRoots + (increments.commitmentRoots || 0),
+    externalCalls: daily.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: daily.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  };
+  context.DailyStats.set(updated);
+}
+
+/**
+ * Unified helper: increments both global Stats and per-day DailyStats.
+ * All handler call sites use this instead of calling incrementStats directly.
+ */
+async function incrementAllStats(
+  context: handlerContext,
+  blockNumber: number,
+  timestamp: number,
+  increments: {
+    transactions?: number;
+    tags?: number;
+    tagsConsumed?: number;
+    tagsCreated?: number;
+    actions?: number;
+    complianceUnits?: number;
+    logicInputs?: number;
+    commitmentRoots?: number;
+    distinctLogics?: number;
+    externalCalls?: number;
+    forwarderCalls?: number;
+    resourcePayloads?: number;
+    discoveryPayloads?: number;
+    applicationPayloads?: number;
+  }
+): Promise<void> {
+  await incrementStats(context, blockNumber, timestamp, increments);
+  await incrementDailyStats(context, blockNumber, timestamp, increments);
 }
 
 // ============================================
@@ -432,7 +560,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   const consumedCount = Math.floor(totalTags / 2);
   const createdCount = totalTags - consumedCount;
 
-  await incrementStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.block.number, event.block.timestamp, {
     transactions: 1,
     tags: totalTags,
     tagsConsumed: consumedCount,
@@ -620,14 +748,14 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     }
 
     // Update stats for compliance units and logic inputs from this action
-    await incrementStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.block.number, event.block.timestamp, {
       actions: 1,
       complianceUnits: decodedAction.complianceVerifierInputs.length,
       logicInputs: decodedAction.logicVerifierInputs.length,
     });
   } else {
     // No decoded action data - just count the action itself
-    await incrementStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.block.number, event.block.timestamp, {
       actions: 1,
     });
   }
@@ -652,6 +780,11 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
     decodingError: decoded.error || undefined,
   });
   context.Payload.set(payloadEntity);
+
+  // Update stats
+  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    resourcePayloads: 1,
+  });
 
   // Create/update Tag entity (without blob fields — blob data lives in Payload)
   const existingTag = await context.Tag.get(tagId);
@@ -713,22 +846,31 @@ function createPayloadEntity(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPayloadArgs) => {
   const entity = createPayloadEntity(event, "discovery");
   context.Payload.set(entity);
+
+  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    discoveryPayloads: 1,
+  });
 });
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPayloadArgs) => {
   const entity = createPayloadEntity(event, "externalCall");
   context.Payload.set(entity);
+
+  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    externalCalls: 1,
+  });
 });
 
-// eslint-disable-next-line @typescript-eslint/require-await
 ProtocolAdapter.ApplicationPayload.handler(async ({ event, context }: ApplicationPayloadArgs) => {
   const entity = createPayloadEntity(event, "application");
   context.Payload.set(entity);
+
+  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    applicationPayloads: 1,
+  });
 });
 
 // ============================================
@@ -754,7 +896,7 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
     context.CommitmentTreeRoot.set(entity);
 
     // Update stats
-    await incrementStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.block.number, event.block.timestamp, {
       commitmentRoots: 1,
     });
   }
@@ -765,7 +907,6 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
 // ============================================
 
 ProtocolAdapter.ForwarderCallExecuted.handler(
-  // eslint-disable-next-line @typescript-eslint/require-await
   async ({ event, context }: ForwarderCallExecutedArgs) => {
     const eventId = createEventId(event);
 
@@ -781,5 +922,9 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
     };
 
     context.ForwarderCall.set(entity);
+
+    await incrementAllStats(context, event.block.number, event.block.timestamp, {
+      forwarderCalls: 1,
+    });
   }
 );
