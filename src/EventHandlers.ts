@@ -881,16 +881,14 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
   async ({ event, context }: CommitmentTreeRootAddedArgs) => {
     const eventId = createEventId(event);
 
-    // Use a deterministic index based on the root value for consistency
-    // In practice, roots are added sequentially per transaction
     const entity: CommitmentTreeRoot = {
       id: eventId,
       root: event.params.root,
       blockNumber: event.block.number,
+      logIndex: event.logIndex,
       txHash: event.transaction.hash,
       timestamp: event.block.timestamp,
       chainId: event.chainId,
-      index: 0, // Index within transaction - would need state tracking for global index
     };
 
     context.CommitmentTreeRoot.set(entity);

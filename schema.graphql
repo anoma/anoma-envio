@@ -194,10 +194,10 @@ type CommitmentTreeRoot {
   id: ID!
   root: String!
   blockNumber: Int!
+  logIndex: Int!  # EVM log index — tiebreaker for ordering within a block
   txHash: String!
   timestamp: Int!
   chainId: Int!
-  index: Int!
 }
 
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
