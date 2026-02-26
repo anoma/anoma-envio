@@ -31,9 +31,9 @@ enum PayloadCategory {
 # EVM Types
 # ============================================
 
-# EVMTransaction - The EVM transaction that carries the Anoma transaction
+# EVMTransaction - The EVM transaction that carries Anoma transaction(s)
 # This represents the blockchain carrier/wrapper, not the Anoma payload.
-# Note: 1:1 relationship with Transaction, linked via Transaction.evmTransaction
+# One EVM transaction may carry multiple Anoma transactions (e.g., via multicall).
 type EVMTransaction {
   id: ID!  # Format: {chainId}_{txHash}
   txHash: String!
@@ -47,6 +47,9 @@ type EVMTransaction {
   gasPrice: BigInt
   gas: BigInt
   gasUsed: BigInt
+
+  # Relationships
+  transactions: [Transaction!]! @derivedFrom(field: "evmTransaction")
 }
 
 # ============================================
@@ -56,7 +59,7 @@ type EVMTransaction {
 # Transaction - The Anoma transaction payload embedded in an EVM transaction
 # Corresponds to: struct Transaction { Action[] actions; bytes deltaProof; bytes aggregationProof; }
 type Transaction {
-  id: ID!  # Format: {chainId}_{txHash}
+  id: ID!  # Format: {chainId}_{txHash}_{logIndex}
   logIndex: Int!  # EVM event log index of the TransactionExecuted event
   contractAddress: String!
 

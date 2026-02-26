@@ -105,12 +105,20 @@ function createEventId(event: {
 }
 
 /**
- * Creates a transaction identifier using the EVM transaction hash.
- * All events within the same EVM transaction share the same hash,
- * allowing proper correlation between TransactionExecuted, ResourcePayload, etc.
+ * Creates an EVM transaction identifier (correlation key shared by all events
+ * in the same EVM transaction). Also the EVMTransaction entity's ID.
  */
-function createTransactionId(chainId: number, txHash: string): string {
+function createEvmTxId(chainId: number, txHash: string): string {
   return `${chainId}_${txHash}`;
+}
+
+/**
+ * Creates a unique AP Transaction identifier. Includes logIndex because
+ * multiple execute() calls in the same EVM tx (e.g., via multicall) each
+ * emit their own TransactionExecuted event with a distinct logIndex.
+ */
+function createTransactionId(chainId: number, txHash: string, logIndex: number): string {
+  return `${chainId}_${txHash}_${logIndex}`;
 }
 
 /**
@@ -195,6 +203,15 @@ function getDecodedTransaction(
 function clearDecodedCache(txHash: string): void {
   decodedCalldataCache.delete(txHash);
 }
+
+// ============================================
+// Pending Action IDs Cache
+// ============================================
+// Tracks action entity IDs created by ActionExecuted so that the subsequent
+// TransactionExecuted handler can retroactively update their transaction_id
+// from the temporary evmTxId to the unique txId (which includes logIndex).
+// Keyed by evmTxId; consumed and cleared on each TransactionExecuted.
+const pendingActionIds = new BoundedCache<string, string[]>(DECODED_CALLDATA_CACHE_MAX_SIZE);
 
 // ============================================
 // Stats Singleton
@@ -407,16 +424,17 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     value?: bigint;
   };
 
-  const txId = createTransactionId(event.chainId, tx.hash);
+  const evmTxId = createEvmTxId(event.chainId, tx.hash);
+  const txId = createTransactionId(event.chainId, tx.hash, event.logIndex);
   const txHash = tx.hash;
 
   // Try to decode calldata for proofs
   // Note: event.transaction.input is available because we added "input" to field_selection
   const decoded = getDecodedTransaction(txHash, tx.input);
 
-  // Create EVMTransaction entity (the carrier/wrapper)
+  // Create EVMTransaction entity (the carrier/wrapper, shared by all AP txs in this EVM tx)
   const evmTxEntity: EVMTransaction = {
-    id: txId,
+    id: evmTxId,
     txHash: txHash,
     blockNumber: event.block.number,
     timestamp: event.block.timestamp,
@@ -430,7 +448,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
 
   context.EVMTransaction.set(evmTxEntity);
 
-  // Create Transaction entity (Anoma Transaction payload)
+  // Create Transaction entity (Anoma Transaction payload — unique per AP tx)
   const txEntity: Transaction = {
     id: txId,
     logIndex: event.logIndex,
@@ -439,10 +457,21 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     logicRefs: event.params.logicRefs,
     deltaProof: decoded?.deltaProof,
     aggregationProof: decoded?.aggregationProof,
-    evmTransaction_id: txId,
+    evmTransaction_id: evmTxId,
   };
 
   context.Transaction.set(txEntity);
+
+  // Retroactively update Actions created by earlier ActionExecuted events
+  // so their transaction_id points to this Transaction (not the temporary evmTxId)
+  const actionIds = pendingActionIds.get(evmTxId) || [];
+  for (const actionId of actionIds) {
+    const action = await context.Action.get(actionId);
+    if (action) {
+      context.Action.set({ ...action, transaction_id: txId });
+    }
+  }
+  pendingActionIds.delete(evmTxId);
 
   // Build a map from nullifier/commitment to compliance unit ID for linking resources
   // This requires looking at all compliance units from all actions
@@ -579,10 +608,10 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
 // We decode the calldata here to create ComplianceUnit and LogicInput entities.
 
 ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecutedArgs) => {
-  const txId = createTransactionId(event.chainId, event.transaction.hash);
+  const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
   const txHash = event.transaction.hash;
-  // Use txHash + actionTreeRoot for unique action ID since multiple actions can be in one tx
-  const actionId = `${txId}_${event.params.actionTreeRoot}`;
+  // Use evmTxId + actionTreeRoot for unique action ID since multiple actions can be in one tx
+  const actionId = `${evmTxId}_${event.params.actionTreeRoot}`;
 
   // Try to decode calldata to get action details
   const txInput = (event.transaction as { hash: string; input?: string }).input;
@@ -624,7 +653,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     }
   }
 
-  // Create Action entity
+  // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
   const actionEntity: Action = {
     id: actionId,
     index: actionIndex,
@@ -633,10 +662,15 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     blockNumber: event.block.number,
     chainId: event.chainId,
     timestamp: event.block.timestamp,
-    transaction_id: txId,
+    transaction_id: evmTxId,
   };
 
   context.Action.set(actionEntity);
+
+  // Track this action for retroactive transaction_id update by TransactionExecuted
+  const pending = pendingActionIds.get(evmTxId) || [];
+  pending.push(actionId);
+  pendingActionIds.set(evmTxId, pending);
 
   // Create ComplianceUnit entities from decoded action
   if (decodedAction) {
@@ -769,7 +803,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 
 ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
   const tagId = createTagId(event.chainId, event.params.tag);
-  const txId = createTransactionId(event.chainId, event.transaction.hash);
+  const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
   // Decode the blob for status tracking on the payload
   const decoded = safeDecodeResourceBlob(event.params.blob);
@@ -801,7 +835,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
       isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
       blockNumber: event.block.number,
       chainId: event.chainId,
-      transaction_id: txId,
+      transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
       logicRef: undefined, // Will be set by TransactionExecuted
       logicInput_id: undefined,
       complianceUnit_id: undefined,
