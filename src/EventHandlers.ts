@@ -122,11 +122,12 @@ function createTransactionId(chainId: number, txHash: string, logIndex: number):
 }
 
 /**
- * Creates a tag identifier from chain and tag hash.
- * Tag hashes are globally unique (cryptographic commitments/nullifiers).
+ * Creates a tag identifier from chain, contract address, and tag hash.
+ * Includes srcAddress to avoid collisions when multiple PA contracts
+ * on the same chain produce tags with the same hash.
  */
-function createTagId(chainId: number, tagHash: string): string {
-  return `${chainId}_${tagHash}`;
+function createTagId(chainId: number, srcAddress: string, tagHash: string): string {
+  return `${chainId}_${srcAddress}_${tagHash}`;
 }
 
 /**
@@ -522,7 +523,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   for (let index = 0; index < event.params.tags.length; index++) {
     const tagHash = event.params.tags[index];
     const isConsumed = isConsumedIndex(index);
-    const tagId = createTagId(event.chainId, tagHash);
+    const tagId = createTagId(event.chainId, event.srcAddress, tagHash);
     const logicRef = event.params.logicRefs[index];
 
     // Find linked compliance unit and logic input
@@ -679,8 +680,8 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       const complianceUnitId = createComplianceUnitId(actionId, cuIndex);
 
       // Find tags by nullifier/commitment
-      const consumedTagId = createTagId(event.chainId, cu.instance.consumed.nullifier);
-      const createdTagId = createTagId(event.chainId, cu.instance.created.commitment);
+      const consumedTagId = createTagId(event.chainId, event.srcAddress, cu.instance.consumed.nullifier);
+      const createdTagId = createTagId(event.chainId, event.srcAddress, cu.instance.created.commitment);
 
       // Try to get existing tags to link
       const consumedTag = await context.Tag.get(consumedTagId);
@@ -732,7 +733,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       const isConsumed = isConsumedIndex(liIndex);
 
       // Find tag by tag hash
-      const tagId = createTagId(event.chainId, li.tag);
+      const tagId = createTagId(event.chainId, event.srcAddress, li.tag);
       const existingTag = await context.Tag.get(tagId);
 
       const logicEntity: LogicInput = {
@@ -802,7 +803,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 // Creates a Payload entity with category "resource" and creates/updates the Tag entity.
 
 ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
-  const tagId = createTagId(event.chainId, event.params.tag);
+  const tagId = createTagId(event.chainId, event.srcAddress, event.params.tag);
   const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
   // Decode the blob for status tracking on the payload
@@ -865,7 +866,7 @@ function createPayloadEntity(
   extra?: { decodingStatus?: Payload["decodingStatus"]; decodingError?: string }
 ): Payload {
   const eventId = createEventId(event);
-  const tagId = createTagId(event.chainId, event.params.tag);
+  const tagId = createTagId(event.chainId, event.srcAddress, event.params.tag);
 
   return {
     id: eventId,
