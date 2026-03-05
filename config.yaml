@@ -51,6 +51,19 @@ networks:
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
 
+  - id: 1313161554 # Aurora
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  - id: 56 # BNB Smart Chain
+    start_block: 0
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+
   - id: 11155111   # eth-sepolia
     start_block: 0
     contracts:
