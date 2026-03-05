@@ -38,7 +38,6 @@ import {
   ProtocolAdapter_ForwarderCallExecuted_event,
 } from "generated";
 
-import { safeDecodeResourceBlob } from "./decoders/ResourceDecoder";
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder";
 import { DeletionCriterion, type Action as DecodedAction } from "./types";
 import { BoundedCache } from "./utils/BoundedCache";
@@ -765,8 +764,6 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
           blob: ep.blob,
           deletionCriterion:
             ep.deletionCriterion === DeletionCriterion.Immediately ? "immediately" : "never",
-          decodingStatus: undefined,
-          decodingError: undefined,
           tag_id: tagId,
         });
       }
@@ -805,14 +802,8 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
   const tagId = createTagId(event.chainId, event.params.tag);
   const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
-  // Decode the blob for status tracking on the payload
-  const decoded = safeDecodeResourceBlob(event.params.blob);
-
   // Create Payload entity with category "resource" (unified with other payload types)
-  const payloadEntity = createPayloadEntity(event, "resource", {
-    decodingStatus: decoded.status,
-    decodingError: decoded.error || undefined,
-  });
+  const payloadEntity = createPayloadEntity(event, "resource");
   context.Payload.set(payloadEntity);
 
   // Update stats
@@ -861,8 +852,7 @@ function createPayloadEntity(
     srcAddress: string;
     params: { tag: string; index: bigint; blob: string };
   },
-  category: "resource" | "discovery" | "externalCall" | "application",
-  extra?: { decodingStatus?: Payload["decodingStatus"]; decodingError?: string }
+  category: "resource" | "discovery" | "externalCall" | "application"
 ): Payload {
   const eventId = createEventId(event);
   const tagId = createTagId(event.chainId, event.params.tag);
@@ -874,8 +864,6 @@ function createPayloadEntity(
     index: Number(event.params.index),
     blob: event.params.blob,
     deletionCriterion: undefined, // Would need to decode from blob structure
-    decodingStatus: extra?.decodingStatus,
-    decodingError: extra?.decodingError,
     tag_id: tagId,
   };
 }

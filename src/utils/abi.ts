@@ -5,36 +5,6 @@
  */
 
 /**
- * Resource struct ABI
- *
- * struct Resource {
- *   bytes32 logicRef;
- *   bytes32 labelRef;
- *   bytes32 valueRef;
- *   bytes32 nullifierKeyCommitment;
- *   bytes32 nonce;
- *   bytes32 randSeed;
- *   uint128 quantity;
- *   bool ephemeral;
- * }
- */
-export const RESOURCE_ABI = [
-  {
-    type: "tuple",
-    components: [
-      { name: "logicRef", type: "bytes32" },
-      { name: "labelRef", type: "bytes32" },
-      { name: "valueRef", type: "bytes32" },
-      { name: "nullifierKeyCommitment", type: "bytes32" },
-      { name: "nonce", type: "bytes32" },
-      { name: "randSeed", type: "bytes32" },
-      { name: "quantity", type: "uint128" },
-      { name: "ephemeral", type: "bool" },
-    ],
-  },
-] as const;
-
-/**
  * Compliance.Instance struct ABI
  *
  * struct Instance {
