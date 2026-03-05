@@ -21,8 +21,6 @@ field_selection:
     - "from"
     - "to"
     - "value"
-    - "gasUsed"
-    - "status"
     - "input"
 # Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
 networks:
@@ -50,6 +48,22 @@ networks:
     - name: ProtocolAdapter
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+  - id: 1313161554 # Aurora
+    start_block: 188232610
+    rpc_config:
+      url: https://mainnet.aurora.dev
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  - id: 56 # BNB Smart Chain
+    start_block: 84845926
+    rpc_config:
+      url: https://bsc-dataseed.binance.org/
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
   - id: 11155111 # eth-sepolia
     start_block: 10134523
     contracts:
