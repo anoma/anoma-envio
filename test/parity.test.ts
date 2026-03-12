@@ -145,55 +145,64 @@ describe("Parity Check: Indexer vs RPC", function () {
         this.skip();
       }
 
-      // Get the indexer's latest tx, then verify it on-chain.
-      // This approach uses only 1-2 RPC calls (works with free-tier RPCs).
-      const [chainTip, indexerTx] = await Promise.all([
-        getRpcChainTip(rpcUrl),
-        getLatestIndexerTx(network.id),
-      ]);
+      try {
+        // Get the indexer's latest tx, then verify it on-chain.
+        // This approach uses only 1-2 RPC calls (works with free-tier RPCs).
+        const [chainTip, indexerTx] = await Promise.all([
+          getRpcChainTip(rpcUrl),
+          getLatestIndexerTx(network.id),
+        ]);
 
-      if (!indexerTx) {
-        console.log(`    ${name}: No transactions indexed yet`);
-        return;
-      }
+        if (!indexerTx) {
+          console.log(`    ${name}: No transactions indexed yet`);
+          return;
+        }
 
-      const idxBlock = indexerTx.evmTransaction.blockNumber;
-      const idxLogIndex = indexerTx.logIndex;
-      const idxTxHash = indexerTx.evmTransaction.txHash;
+        const idxBlock = indexerTx.evmTransaction.blockNumber;
+        const idxLogIndex = indexerTx.logIndex;
+        const idxTxHash = indexerTx.evmTransaction.txHash;
 
-      console.log(
-        `    ${name} Indexer : txHash=${idxTxHash.slice(0, 18)}… block=${idxBlock} logIndex=${idxLogIndex}`
-      );
-
-      // The indexer's latest tx must look valid
-      expect(idxTxHash)
-        .to.be.a("string")
-        .and.match(/^0x[0-9a-fA-F]{64}$/);
-      expect(idxBlock).to.be.a("number").and.greaterThan(0);
-      expect(idxLogIndex).to.be.a("number").and.at.least(0);
-
-      // Verify the indexer's latest tx exists on-chain
-      const rpcLogs = await getRpcLogsForBlock(rpcUrl, contractAddress, idxBlock);
-      const matchingLog = rpcLogs.find(
-        (log) => log.transactionHash.toLowerCase() === idxTxHash.toLowerCase()
-      );
-
-      expect(
-        matchingLog,
-        `${name}: indexer tx ${idxTxHash} not found on-chain at block ${idxBlock}`
-      ).to.not.be.undefined;
-      expect(parseInt(matchingLog!.logIndex, 16)).to.equal(
-        idxLogIndex,
-        `${name}: logIndex mismatch at block ${idxBlock}`
-      );
-
-      const blockDiff = chainTip - idxBlock;
-      if (blockDiff > 0) {
         console.log(
-          `    ${name} BEHIND  : indexer is ${blockDiff} blocks behind chain tip ${chainTip}`
+          `    ${name} Indexer : txHash=${idxTxHash.slice(0, 18)}… block=${idxBlock} logIndex=${idxLogIndex}`
         );
-      } else {
-        console.log(`    ${name} IN SYNC`);
+
+        // The indexer's latest tx must look valid
+        expect(idxTxHash)
+          .to.be.a("string")
+          .and.match(/^0x[0-9a-fA-F]{64}$/);
+        expect(idxBlock).to.be.a("number").and.greaterThan(0);
+        expect(idxLogIndex).to.be.a("number").and.at.least(0);
+
+        // Verify the indexer's latest tx exists on-chain
+        const rpcLogs = await getRpcLogsForBlock(rpcUrl, contractAddress, idxBlock);
+        const matchingLog = rpcLogs.find(
+          (log) => log.transactionHash.toLowerCase() === idxTxHash.toLowerCase()
+        );
+
+        expect(
+          matchingLog,
+          `${name}: indexer tx ${idxTxHash} not found on-chain at block ${idxBlock}`
+        ).to.not.be.undefined;
+        expect(parseInt(matchingLog!.logIndex, 16)).to.equal(
+          idxLogIndex,
+          `${name}: logIndex mismatch at block ${idxBlock}`
+        );
+
+        const blockDiff = chainTip - idxBlock;
+        if (blockDiff > 0) {
+          console.log(
+            `    ${name} BEHIND  : indexer is ${blockDiff} blocks behind chain tip ${chainTip}`
+          );
+        } else {
+          console.log(`    ${name} IN SYNC`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("429") || msg.includes("rate limit") || msg.includes("empty response")) {
+          console.log(`    ${name}: RPC rate limited (${msg}) — skipping`);
+          this.skip();
+        }
+        throw err;
       }
     });
   }

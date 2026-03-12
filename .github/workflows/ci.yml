@@ -280,3 +280,74 @@ jobs:
       - name: Teardown
         if: always()
         run: docker compose --profile build down
+
+  integration-all:
+    name: Integration (all chains)
+    needs: [integration]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    env:
+      ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
+      ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Envio codegen
+        run: pnpm codegen
+
+      - name: Configure all chains for CI
+        run: |
+          chmod +x scripts/configure-ci-all-chains.sh
+          ./scripts/configure-ci-all-chains.sh
+
+      - name: Start indexer stack
+        run: docker compose --profile build up -d
+
+      - name: Wait for indexer to sync
+        run: |
+          echo "Polling Hasura for schema readiness..."
+          for i in $(seq 1 60); do
+            RESULT=$(curl -sf http://localhost:8080/v1/graphql \
+              -H 'Content-Type: application/json' \
+              -d '{"query":"{ Transaction(limit:1) { id } }"}' 2>/dev/null || echo '{}')
+            if echo "$RESULT" | grep -q '"Transaction"'; then
+              echo "Schema ready after $((i * 10))s"
+              # Give the indexer more time to process events across all chains
+              sleep 30
+              exit 0
+            fi
+            echo "Attempt $i/60 — schema not ready, retrying in 10s..."
+            sleep 10
+          done
+          echo "Timed out waiting for schema (600s)"
+          exit 1
+
+      - name: Run integration tests
+        run: |
+          export ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
+          pnpm ts-mocha --timeout 120000 'test/graphql.test.ts' 'test/parity.test.ts'
+
+      - name: Docker compose logs
+        if: failure()
+        run: docker compose --profile build logs
+
+      - name: Teardown
+        if: always()
+        run: docker compose --profile build down

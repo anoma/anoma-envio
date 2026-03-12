@@ -101,9 +101,16 @@ export async function rpcCall(rpcUrl: string, method: string, params: unknown[])
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
-  const json = (await res.json()) as {
+  if (!res.ok) {
+    throw new Error(`RPC HTTP ${res.status}: ${method} to ${rpcUrl}`);
+  }
+  const text = await res.text();
+  if (!text) {
+    throw new Error(`RPC empty response: ${method} to ${rpcUrl}`);
+  }
+  const json = JSON.parse(text) as {
     result?: unknown;
-    error?: { message: string };
+    error?: { message: string; code?: number };
   };
   if (json.error) {
     throw new Error(`RPC error: ${json.error.message}`);
