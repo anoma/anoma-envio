@@ -27,34 +27,33 @@ field_selection:
 # Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
 networks:
   - id: 1 # Mainnet
-    start_block: 0
+    start_block: 24326330
     contracts:
     - name: ProtocolAdapter
       address:
         - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
   - id: 42161 # Arbitrum
-    start_block: 0
+    start_block: 425772682
     contracts:
     - name: ProtocolAdapter
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 8453 # Base
-    start_block: 0
+    start_block: 41364871
     contracts:
     - name: ProtocolAdapter
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 10 # Optimism
-    start_block: 0
+    start_block: 146960226
     contracts:
     - name: ProtocolAdapter
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-
-  - id: 11155111   # eth-sepolia
-    start_block: 0
+  - id: 11155111 # eth-sepolia
+    start_block: 10134523
     contracts:
     - name: ProtocolAdapter
       address:
-      - 0xf152bba809d6cba122579cee997a54b8f3fba417
+        - "0xf152bba809d6cba122579cee997a54b8f3fba417"
 unordered_multichain_mode: true

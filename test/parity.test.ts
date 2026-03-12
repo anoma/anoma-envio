@@ -5,6 +5,8 @@
  * indexed by Envio against what the RPC reports on-chain.
  * Compares (txHash, blockNumber, logIndex) tuples.
  *
+ * All chain metadata is derived from config.yaml — nothing is hardcoded.
+ *
  * Usage:
  *   ENVIO_GRAPHQL_URL=https://your-endpoint/v1/graphql pnpm test -- --grep "Parity"
  *
@@ -12,35 +14,12 @@
  */
 
 import { expect } from "chai";
-import * as yaml from "yaml";
-import * as fs from "fs";
-import * as path from "path";
+import { parseConfig, chainName, getRpcUrl, rpcCall, type NetworkConfig } from "./chain-utils";
 
 // TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
 const TX_EXECUTED_TOPIC = "0x10dd528db2c49add6545679b976df90d24c035d6a75b17f41b700e8c18ca5364";
 
 const GRAPHQL_URL: string | undefined = process.env.ENVIO_GRAPHQL_URL;
-
-// Default public RPCs for chains that don't have rpc_config in config.yaml
-const DEFAULT_RPCS: Record<number, string> = {
-  1: "https://eth.llamarpc.com",
-  42161: "https://arb1.arbitrum.io/rpc",
-  8453: "https://mainnet.base.org",
-  10: "https://mainnet.optimism.io",
-  11155111: "https://rpc.sepolia.org",
-  84532: "https://sepolia.base.org",
-};
-
-interface NetworkConfig {
-  id: number;
-  start_block: number;
-  rpc_config?: { url: string };
-  contracts: Array<{ name: string; address: string[] }>;
-}
-
-interface Config {
-  networks: NetworkConfig[];
-}
 
 interface RpcLog {
   transactionHash: string;
@@ -56,61 +35,6 @@ interface IndexerTransaction {
     blockNumber: number;
     chainId: number;
   };
-}
-
-function parseConfig(): NetworkConfig[] {
-  const configPath = path.resolve(__dirname, "..", "config.yaml");
-  const raw = fs.readFileSync(configPath, "utf-8");
-  const config = yaml.parse(raw) as Config;
-  return config.networks;
-}
-
-function getRpcUrl(network: NetworkConfig): string | undefined {
-  // Env var override: RPC_<NAME> (e.g. RPC_SEPOLIA) or RPC_<chainId>
-  const name = chainName(network.id)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_");
-  const nameKey = `RPC_${name}`;
-  if (process.env[nameKey]) {
-    return process.env[nameKey];
-  }
-  const idKey = `RPC_${network.id}`;
-  if (process.env[idKey]) {
-    return process.env[idKey];
-  }
-  if (network.rpc_config?.url) {
-    return network.rpc_config.url;
-  }
-  return DEFAULT_RPCS[network.id];
-}
-
-function chainName(id: number): string {
-  const names: Record<number, string> = {
-    1: "Mainnet",
-    42161: "Arbitrum",
-    8453: "Base",
-    10: "Optimism",
-    11155111: "Sepolia",
-    84532: "Base Sepolia",
-    56: "BNB Smart Chain",
-    97: "BNB Testnet",
-    1313161554: "Aurora",
-    1313161555: "Aurora Testnet",
-  };
-  return names[id] ?? `Chain ${id}`;
-}
-
-async function rpcCall(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {
-  const res = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const json = (await res.json()) as { result?: unknown; error?: { message: string } };
-  if (json.error) {
-    throw new Error(`RPC error: ${json.error.message}`);
-  }
-  return json.result;
 }
 
 async function getRpcChainTip(rpcUrl: string): Promise<number> {
@@ -188,14 +112,10 @@ describe("Parity Check: Indexer vs RPC", function () {
     console.log(`\n  Loaded ${networks.length} networks from config.yaml`);
   });
 
-  // Dynamically create a test per chain
-  // Note: we use before() to set up tests since mocha needs static describe/it
-  // but we can iterate in a describe block
+  // Dynamically create a test per chain from config.yaml
   const networkConfigs = (() => {
     try {
-      const configPath = path.resolve(__dirname, "..", "config.yaml");
-      const raw = fs.readFileSync(configPath, "utf-8");
-      return (yaml.parse(raw) as Config).networks;
+      return parseConfig();
     } catch {
       return [];
     }

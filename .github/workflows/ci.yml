@@ -20,6 +20,25 @@ env:
   NODE_VERSION: "20"
 
 jobs:
+  # Generate matrix from config.yaml — single source of truth for chain list
+  setup:
+    name: Setup Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Generate matrix from config.yaml
+        id: matrix
+        run: |
+          chmod +x scripts/generate-ci-matrix.sh
+          MATRIX=$(./scripts/generate-ci-matrix.sh)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Generated matrix:"
+          echo "$MATRIX" | python3 -m json.tool
+
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -115,23 +134,13 @@ jobs:
 
   validation:
     name: Validate (${{ matrix.name }})
+    needs: [setup]
     runs-on: ubuntu-latest
     env:
       ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { chain_id: 1,          name: Mainnet,       alchemy: eth-mainnet }
-          - { chain_id: 42161,      name: Arbitrum,      alchemy: arb-mainnet }
-          - { chain_id: 8453,       name: Base,          alchemy: base-mainnet }
-          - { chain_id: 10,         name: Optimism,      alchemy: opt-mainnet }
-          - { chain_id: 11155111,   name: Sepolia,       alchemy: eth-sepolia }
-          - { chain_id: 84532,      name: Base-Sepolia,  alchemy: base-sepolia }
-          - { chain_id: 56,         name: BNB }
-          - { chain_id: 97,         name: BNB-Testnet }
-          - { chain_id: 1313161554, name: Aurora }
-          - { chain_id: 1313161555, name: Aurora-Testnet }
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     steps:
       - name: Checkout repo
@@ -156,30 +165,25 @@ jobs:
         run: pnpm codegen
 
       - name: Run config validation
-        env:
-          RPC_${{ matrix.chain_id }}: ${{ matrix.alchemy && format('https://{0}.g.alchemy.com/v2/{1}', matrix.alchemy, secrets.ALCHEMY_API_KEY) || '' }}
-        run: pnpm ts-mocha --timeout 120000 --grep '\[${{ matrix.name }}\]' 'test/ci/config-validation.test.ts'
+        run: |
+          # Prefer Alchemy archive RPC (supports historical queries like eth_getCode at block N)
+          if [ -n "${{ matrix.alchemy }}" ] && [ -n "$ALCHEMY_API_KEY" ]; then
+            export "RPC_${{ matrix.rpc_key }}=https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+          elif [ -n "${{ matrix.rpc_url }}" ]; then
+            export "RPC_${{ matrix.rpc_key }}=${{ matrix.rpc_url }}"
+          fi
+          pnpm ts-mocha --timeout 120000 --grep '\(chain ${{ matrix.chain_id }}\)' 'test/ci/config-validation.test.ts'
 
   integration:
     name: Integration (${{ matrix.name }})
+    needs: [setup]
     runs-on: ubuntu-latest
     env:
-      ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
       ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
+      ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { chain_id: 1,          name: Mainnet,       alchemy: eth-mainnet }
-          - { chain_id: 42161,      name: Arbitrum,      alchemy: arb-mainnet }
-          - { chain_id: 8453,       name: Base,          alchemy: base-mainnet }
-          - { chain_id: 10,         name: Optimism,      alchemy: opt-mainnet }
-          - { chain_id: 11155111,   name: Sepolia,       alchemy: eth-sepolia }
-          - { chain_id: 84532,      name: Base-Sepolia,  alchemy: base-sepolia }
-          - { chain_id: 56,         name: BNB }
-          - { chain_id: 97,         name: BNB-Testnet }
-          - { chain_id: 1313161554, name: Aurora }
-          - { chain_id: 1313161555, name: Aurora-Testnet }
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     steps:
       - name: Checkout repo
@@ -208,11 +212,19 @@ jobs:
           # Filter to single chain
           yq -i '.networks = [.networks[] | select(.id == ${{ matrix.chain_id }})]' config.yaml
 
-          # Set Alchemy RPC for supported chains
-          if [ -n "${{ matrix.alchemy }}" ]; then
-            RPC_URL="https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
-            export RPC_URL
-            yq -i '.networks[0].rpc_config.url = env(RPC_URL)' config.yaml
+          # Ensure rpc_config is set (HyperSync chains need it for CI docker-compose)
+          CONFIG_RPC=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
+          if [ -z "$CONFIG_RPC" ]; then
+            # Construct RPC URL: prefer Alchemy (archive-capable), fall back to matrix.rpc_url
+            if [ -n "${{ matrix.alchemy }}" ] && [ -n "$ALCHEMY_API_KEY" ]; then
+              CONFIG_RPC="https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+            elif [ -n "${{ matrix.rpc_url }}" ]; then
+              CONFIG_RPC="${{ matrix.rpc_url }}"
+            fi
+            export CONFIG_RPC
+            yq -i '.networks[0].rpc_config.url = env(CONFIG_RPC)' config.yaml
+            # Remove transaction_fields not available via RPC (only via HyperSync)
+            yq -i '.field_selection.transaction_fields -= ["gasUsed", "status"]' config.yaml
           fi
 
           # Get chain tip and set start_block near it for fast sync
@@ -252,11 +264,13 @@ jobs:
           exit 1
 
       - name: Run integration tests
-        env:
-          ENVIO_GRAPHQL_URL: http://localhost:8080/v1/graphql
-          RPC_URL_OVERRIDE: ${{ matrix.alchemy && format('https://{0}.g.alchemy.com/v2/{1}', matrix.alchemy, secrets.ALCHEMY_API_KEY) || '' }}
         run: |
-          export "RPC_${{ matrix.chain_id }}=${RPC_URL_OVERRIDE:-$(yq '.networks[0].rpc_config.url' config.yaml)}"
+          export ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
+          # Set RPC env var for parity test
+          RPC_URL=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
+          if [ -n "$RPC_URL" ]; then
+            export "RPC_${{ matrix.rpc_key }}=$RPC_URL"
+          fi
           pnpm ts-mocha --timeout 120000 'test/graphql.test.ts' 'test/parity.test.ts'
 
       - name: Docker compose logs
