@@ -274,9 +274,133 @@ describe("GraphQL Endpoint", function () {
     });
   });
 
+  describe("Commitment Tree Root Parity", () => {
+    it("should have the latest CommitmentTreeRoot matching the latest Transaction per chain", async () => {
+      // Get latest Transaction per chain (sorted by block desc, then logIndex desc)
+      const txData = await query<{
+        Transaction: Array<{
+          id: string;
+          logIndex: number;
+          contractAddress: string;
+          evmTransaction: { txHash: string; blockNumber: number; chainId: number };
+        }>;
+      }>(`
+        query {
+          Transaction(limit: 10, order_by: [
+            { evmTransaction: { blockNumber: desc } },
+            { logIndex: desc }
+          ]) {
+            id
+            logIndex
+            contractAddress
+            evmTransaction { txHash blockNumber chainId }
+          }
+        }
+      `);
+
+      // Get latest CommitmentTreeRoot per chain (sorted by block desc, then logIndex desc)
+      const rootData = await query<{
+        CommitmentTreeRoot: Array<{
+          id: string;
+          root: string;
+          blockNumber: number;
+          logIndex: number;
+          txHash: string;
+          chainId: number;
+        }>;
+      }>(`
+        query {
+          CommitmentTreeRoot(limit: 10, order_by: [
+            { blockNumber: desc },
+            { logIndex: desc }
+          ]) {
+            id
+            root
+            blockNumber
+            logIndex
+            txHash
+            chainId
+          }
+        }
+      `);
+
+      expect(txData.Transaction).to.be.an("array");
+      expect(rootData.CommitmentTreeRoot).to.be.an("array");
+
+      if (txData.Transaction.length === 0) {
+        console.log("\n  No transactions indexed yet — skipping parity check");
+        return;
+      }
+
+      if (rootData.CommitmentTreeRoot.length === 0) {
+        console.log("\n  No commitment tree roots indexed yet — skipping parity check");
+        return;
+      }
+
+      // Group by chainId: pick the latest Transaction and latest CommitmentTreeRoot per chain
+      const latestTxByChain = new Map<number, (typeof txData.Transaction)[0]>();
+      for (const tx of txData.Transaction) {
+        const chainId = tx.evmTransaction.chainId;
+        if (!latestTxByChain.has(chainId)) {
+          latestTxByChain.set(chainId, tx);
+        }
+      }
+
+      const latestRootByChain = new Map<number, (typeof rootData.CommitmentTreeRoot)[0]>();
+      for (const root of rootData.CommitmentTreeRoot) {
+        if (!latestRootByChain.has(root.chainId)) {
+          latestRootByChain.set(root.chainId, root);
+        }
+      }
+
+      console.log("\n  Commitment Tree Root vs Latest Transaction:");
+
+      for (const [chainId, tx] of latestTxByChain) {
+        const root = latestRootByChain.get(chainId);
+
+        if (!root) {
+          console.log(`    Chain ${chainId}: no CommitmentTreeRoot indexed — SKIPPED`);
+          continue;
+        }
+
+        const txBlock = tx.evmTransaction.blockNumber;
+        const txHash = tx.evmTransaction.txHash;
+
+        console.log(`    Chain ${chainId}:`);
+        console.log(
+          `      Latest TX    : block=${txBlock} logIndex=${tx.logIndex} txHash=${txHash.slice(0, 18)}…`
+        );
+        console.log(
+          `      Latest Root  : block=${root.blockNumber} logIndex=${root.logIndex} txHash=${root.txHash.slice(0, 18)}…`
+        );
+        console.log(`      Root value   : ${root.root.slice(0, 18)}…`);
+
+        // The CommitmentTreeRootAdded event fires right before TransactionExecuted,
+        // so they must share the same txHash and block number.
+        expect(root.txHash.toLowerCase()).to.equal(
+          txHash.toLowerCase(),
+          `Chain ${chainId}: latest CommitmentTreeRoot txHash does not match latest Transaction txHash`
+        );
+        expect(root.blockNumber).to.equal(
+          txBlock,
+          `Chain ${chainId}: latest CommitmentTreeRoot blockNumber does not match latest Transaction blockNumber`
+        );
+
+        // CommitmentTreeRootAdded fires before TransactionExecuted in the same tx,
+        // so the root's logIndex must be less than the transaction's logIndex.
+        expect(root.logIndex).to.be.lessThan(
+          tx.logIndex,
+          `Chain ${chainId}: CommitmentTreeRoot logIndex should be less than TransactionExecuted logIndex`
+        );
+
+        console.log(`      MATCH ✓`);
+      }
+    });
+  });
+
   describe("External Call Payloads", () => {
     it("should fetch externalCall payloads from decoded calldata", async () => {
-      const data = await query<{
+      let data: {
         Payload: Array<{
           id: string;
           category: string;
@@ -284,17 +408,27 @@ describe("GraphQL Endpoint", function () {
           blob: string;
           deletionCriterion: string | null;
         }>;
-      }>(`
-        query {
-          Payload(limit: 10, where: {category: {_eq: "externalCall"}}) {
-            id
-            category
-            tagHash
-            blob
-            deletionCriterion
+      };
+      try {
+        data = await query<typeof data>(`
+          query {
+            Payload(limit: 10, where: {category: {_eq: "externalCall"}}) {
+              id
+              category
+              tagHash
+              blob
+              deletionCriterion
+            }
           }
+        `);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("does not exist")) {
+          console.log("\n  Payload type not yet registered in Hasura (no payloads indexed yet)");
+          return;
         }
-      `);
+        throw e;
+      }
 
       expect(data.Payload).to.be.an("array");
 

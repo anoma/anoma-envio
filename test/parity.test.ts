@@ -66,10 +66,17 @@ function parseConfig(): NetworkConfig[] {
 }
 
 function getRpcUrl(network: NetworkConfig): string | undefined {
-  // Env var override: RPC_<chainId>
-  const envKey = `RPC_${network.id}`;
-  if (process.env[envKey]) {
-    return process.env[envKey];
+  // Env var override: RPC_<NAME> (e.g. RPC_SEPOLIA) or RPC_<chainId>
+  const name = chainName(network.id)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_");
+  const nameKey = `RPC_${name}`;
+  if (process.env[nameKey]) {
+    return process.env[nameKey];
+  }
+  const idKey = `RPC_${network.id}`;
+  if (process.env[idKey]) {
+    return process.env[idKey];
   }
   if (network.rpc_config?.url) {
     return network.rpc_config.url;
@@ -106,33 +113,25 @@ async function rpcCall(rpcUrl: string, method: string, params: unknown[]): Promi
   return json.result;
 }
 
-async function getLatestRpcLog(rpcUrl: string, contractAddress: string): Promise<RpcLog | null> {
-  const latestBlock = (await rpcCall(rpcUrl, "eth_blockNumber", [])) as string;
+async function getRpcChainTip(rpcUrl: string): Promise<number> {
+  const hex = (await rpcCall(rpcUrl, "eth_blockNumber", [])) as string;
+  return parseInt(hex, 16);
+}
 
-  // Search backwards in chunks to find the latest TransactionExecuted event.
-  // Start from the latest block and go back up to 500k blocks.
-  const latest = parseInt(latestBlock, 16);
-  const chunkSize = 50_000;
-  const maxLookback = 500_000;
-
-  for (let to = latest; to > latest - maxLookback && to >= 0; to -= chunkSize) {
-    const from = Math.max(to - chunkSize + 1, 0);
-    const logs = (await rpcCall(rpcUrl, "eth_getLogs", [
-      {
-        address: contractAddress,
-        topics: [TX_EXECUTED_TOPIC],
-        fromBlock: `0x${from.toString(16)}`,
-        toBlock: `0x${to.toString(16)}`,
-      },
-    ])) as RpcLog[];
-
-    if (logs.length > 0) {
-      // Return the last (most recent) log
-      return logs[logs.length - 1];
-    }
-  }
-
-  return null;
+async function getRpcLogsForBlock(
+  rpcUrl: string,
+  contractAddress: string,
+  blockNumber: number
+): Promise<RpcLog[]> {
+  const hex = `0x${blockNumber.toString(16)}`;
+  return (await rpcCall(rpcUrl, "eth_getLogs", [
+    {
+      address: contractAddress,
+      topics: [TX_EXECUTED_TOPIC],
+      fromBlock: hex,
+      toBlock: hex,
+    },
+  ])) as RpcLog[];
 }
 
 async function graphqlQuery<T>(queryString: string): Promise<T> {
@@ -226,39 +225,15 @@ describe("Parity Check: Indexer vs RPC", function () {
         this.skip();
       }
 
-      // Fetch from both sources in parallel
-      const [rpcLog, indexerTx] = await Promise.all([
-        getLatestRpcLog(rpcUrl, contractAddress),
+      // Get the indexer's latest tx, then verify it on-chain.
+      // This approach uses only 1-2 RPC calls (works with free-tier RPCs).
+      const [chainTip, indexerTx] = await Promise.all([
+        getRpcChainTip(rpcUrl),
         getLatestIndexerTx(network.id),
       ]);
 
-      if (!rpcLog && !indexerTx) {
-        console.log(`    ${name}: No TransactionExecuted events found (RPC or indexer)`);
-        return; // Both empty is fine
-      }
-
-      if (!rpcLog) {
-        console.log(
-          `    ${name}: No events on RPC (within lookback window), indexer has block ${indexerTx!.evmTransaction.blockNumber}`
-        );
-        // The indexer may have events from further back — not a failure
-        return;
-      }
-
-      const rpcBlockNumber = parseInt(rpcLog.blockNumber, 16);
-      const rpcLogIndex = parseInt(rpcLog.logIndex, 16);
-      const rpcTxHash = rpcLog.transactionHash;
-
-      console.log(
-        `    ${name} RPC     : txHash=${rpcTxHash.slice(0, 18)}… block=${rpcBlockNumber} logIndex=${rpcLogIndex}`
-      );
-
       if (!indexerTx) {
-        // RPC has events but indexer doesn't — the indexer may be behind
-        console.log(
-          `    ${name} Indexer : no transactions indexed yet — indexer may still be syncing`
-        );
-        console.log(`    ${name} BEHIND  : indexer has not yet reached block ${rpcBlockNumber}`);
+        console.log(`    ${name}: No transactions indexed yet`);
         return;
       }
 
@@ -270,30 +245,35 @@ describe("Parity Check: Indexer vs RPC", function () {
         `    ${name} Indexer : txHash=${idxTxHash.slice(0, 18)}… block=${idxBlock} logIndex=${idxLogIndex}`
       );
 
-      const blockDiff = rpcBlockNumber - idxBlock;
-      if (blockDiff > 0) {
-        console.log(`    ${name} BEHIND  : indexer is ${blockDiff} blocks behind RPC`);
-      } else {
-        console.log(`    ${name} IN SYNC`);
-      }
-
-      // The indexer's latest tx must exist on-chain (txHash matches something real)
+      // The indexer's latest tx must look valid
       expect(idxTxHash)
         .to.be.a("string")
         .and.match(/^0x[0-9a-fA-F]{64}$/);
       expect(idxBlock).to.be.a("number").and.greaterThan(0);
       expect(idxLogIndex).to.be.a("number").and.at.least(0);
 
-      // If the indexer has caught up to the same block, the data must match exactly
-      if (idxBlock === rpcBlockNumber) {
-        expect(idxTxHash.toLowerCase()).to.equal(
-          rpcTxHash.toLowerCase(),
-          `${name}: txHash mismatch at block ${rpcBlockNumber}`
+      // Verify the indexer's latest tx exists on-chain
+      const rpcLogs = await getRpcLogsForBlock(rpcUrl, contractAddress, idxBlock);
+      const matchingLog = rpcLogs.find(
+        (log) => log.transactionHash.toLowerCase() === idxTxHash.toLowerCase()
+      );
+
+      expect(
+        matchingLog,
+        `${name}: indexer tx ${idxTxHash} not found on-chain at block ${idxBlock}`
+      ).to.not.be.undefined;
+      expect(parseInt(matchingLog!.logIndex, 16)).to.equal(
+        idxLogIndex,
+        `${name}: logIndex mismatch at block ${idxBlock}`
+      );
+
+      const blockDiff = chainTip - idxBlock;
+      if (blockDiff > 0) {
+        console.log(
+          `    ${name} BEHIND  : indexer is ${blockDiff} blocks behind chain tip ${chainTip}`
         );
-        expect(idxLogIndex).to.equal(
-          rpcLogIndex,
-          `${name}: logIndex mismatch at block ${rpcBlockNumber}`
-        );
+      } else {
+        console.log(`    ${name} IN SYNC`);
       }
     });
   }
