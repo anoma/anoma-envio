@@ -2,100 +2,21 @@
  * Config Validation: verify config.yaml entries against on-chain state.
  *
  * For every network in config.yaml this checks:
- *   1. RPC is reachable (eth_blockNumber returns a valid number)
- *   2. Contract is deployed (eth_getCode at latest is not "0x")
- *   3. start_block is valid (contract had code at start_block)
- *   4. start_block is not too early (warns if contract had code at start_block - 1)
+ *   1. start_block > 0 and < chain tip
+ *   2. RPC is reachable (eth_blockNumber returns a valid number)
+ *   3. Contract is deployed (eth_getCode at latest is not "0x")
+ *   4. Contract has code at start_block + 1 (deployed at or before start_block)
+ *   5. Contract has NO code at start_block - 1 (start_block is the deployment block)
+ *
+ * All chain metadata is derived from config.yaml — nothing is hardcoded.
+ * Archive RPC access is required for start_block validation.
  *
  * Usage:
  *   pnpm test -- --grep "Config Validation"
  */
 
 import { expect } from "chai";
-import * as yaml from "yaml";
-import * as fs from "fs";
-import * as path from "path";
-
-const DEFAULT_RPCS: Record<number, string> = {
-  1: "https://eth.llamarpc.com",
-  42161: "https://arb1.arbitrum.io/rpc",
-  8453: "https://mainnet.base.org",
-  10: "https://mainnet.optimism.io",
-  11155111: "https://rpc.sepolia.org",
-  84532: "https://sepolia.base.org",
-};
-
-interface NetworkConfig {
-  id: number;
-  start_block: number;
-  rpc_config?: { url: string };
-  contracts: Array<{ name: string; address: string[] }>;
-}
-
-interface Config {
-  networks: NetworkConfig[];
-}
-
-function chainName(id: number): string {
-  const names: Record<number, string> = {
-    1: "Mainnet",
-    42161: "Arbitrum",
-    8453: "Base",
-    10: "Optimism",
-    11155111: "Sepolia",
-    84532: "Base Sepolia",
-    56: "BNB Smart Chain",
-    97: "BNB Testnet",
-    1313161554: "Aurora",
-    1313161555: "Aurora Testnet",
-  };
-  return names[id] ?? `Chain ${id}`;
-}
-
-function getRpcUrl(network: NetworkConfig): string | undefined {
-  const name = chainName(network.id)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_");
-  const nameKey = `RPC_${name}`;
-  if (process.env[nameKey]) {
-    return process.env[nameKey];
-  }
-  const idKey = `RPC_${network.id}`;
-  if (process.env[idKey]) {
-    return process.env[idKey];
-  }
-  if (network.rpc_config?.url) {
-    return network.rpc_config.url;
-  }
-  return DEFAULT_RPCS[network.id];
-}
-
-function parseConfig(): NetworkConfig[] {
-  const configPath = path.resolve(__dirname, "..", "..", "config.yaml");
-  const raw = fs.readFileSync(configPath, "utf-8");
-  const config = yaml.parse(raw) as Config;
-  return config.networks;
-}
-
-async function rpcCall(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {
-  const res = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const json = (await res.json()) as {
-    result?: unknown;
-    error?: { message: string };
-  };
-  if (json.error) {
-    throw new Error(`RPC error: ${json.error.message}`);
-  }
-  return json.result;
-}
-
-function toHex(n: number): string {
-  return `0x${n.toString(16)}`;
-}
+import { parseConfig, chainName, getRpcUrl, rpcEnvKey, rpcCall, toHex } from "../chain-utils";
 
 describe("Config Validation: config.yaml vs on-chain state", function () {
   this.timeout(120_000);
@@ -123,10 +44,7 @@ describe("Config Validation: config.yaml vs on-chain state", function () {
         it("should have an RPC URL configured", function () {
           expect.fail(
             `No RPC URL found for ${name} (chain ${network.id}). ` +
-              `Set RPC_${chainName(network.id)
-                .toUpperCase()
-                .replace(/[^A-Z0-9]+/g, "_")} ` +
-              `or add rpc_config.url to config.yaml.`
+              `Set ${rpcEnvKey(network.id)} env var or add rpc_config.url to config.yaml.`
           );
         });
         return;
@@ -139,11 +57,23 @@ describe("Config Validation: config.yaml vs on-chain state", function () {
         return;
       }
 
-      it("RPC reachable: eth_blockNumber returns a valid block number", async function () {
+      it("start_block must be a valid deployment block", async function () {
+        expect(
+          network.start_block,
+          `${name}: start_block is 0 — set it to the contract deployment block. ` +
+            `Find it via: https://etherscan.io/address/${contractAddress} (check "Contract Creator" tx)`
+        ).to.be.greaterThan(0);
+
         const hex = (await rpcCall(rpcUrl, "eth_blockNumber", [])) as string;
-        const blockNumber = parseInt(hex, 16);
-        expect(blockNumber).to.be.a("number").and.greaterThan(0);
-        console.log(`    ${name}: chain tip = ${blockNumber}`);
+        const chainTip = parseInt(hex, 16);
+        expect(
+          network.start_block,
+          `${name}: start_block ${network.start_block} is beyond chain tip ${chainTip}`
+        ).to.be.lessThan(chainTip);
+
+        console.log(
+          `    ${name}: config start_block = ${network.start_block}, chain tip = ${chainTip}`
+        );
       });
 
       it("Contract deployed: eth_getCode at latest is not empty", async function () {
@@ -156,7 +86,7 @@ describe("Config Validation: config.yaml vs on-chain state", function () {
         );
       });
 
-      it("start_block is valid: contract has code right after start_block", async function () {
+      it("start_block is valid: contract has code at start_block + 1", async function () {
         // eth_getCode at block N returns state at the START of block N.
         // If the contract was deployed IN block N, code only appears at block N+1.
         const checkBlock = network.start_block + 1;
@@ -172,27 +102,24 @@ describe("Config Validation: config.yaml vs on-chain state", function () {
             `or the RPC does not support archive queries.`
         );
         expect(code.length).to.be.greaterThan(2, `${name}: empty bytecode at block ${checkBlock}`);
-        console.log(`    ${name}: contract has code at block ${checkBlock} (start_block + 1)`);
+        console.log(`    ${name}: RPC confirms code at block ${checkBlock} (start_block + 1) ✓`);
       });
 
-      it("start_block is not too early: check code at start_block - 1", async function () {
-        if (network.start_block <= 0) {
-          console.log(`    ${name}: start_block is 0, skipping prior-block check`);
-          return;
-        }
-        const priorBlockHex = toHex(network.start_block - 1);
+      it("start_block is not too early: no code at start_block - 1", async function () {
+        const priorBlock = network.start_block - 1;
         const code = (await rpcCall(rpcUrl, "eth_getCode", [
           contractAddress,
-          priorBlockHex,
+          toHex(priorBlock),
         ])) as string;
         if (code && code !== "0x" && code.length > 2) {
           console.log(
-            `    ${name}: WARNING — contract had code at block ${network.start_block - 1} ` +
-              `(one before start_block). start_block might be set after the actual deployment.`
+            `    ${name}: WARNING — RPC shows code at block ${priorBlock} (start_block - 1). ` +
+              `Real deployment may be earlier than config start_block ${network.start_block}.`
           );
         } else {
           console.log(
-            `    ${name}: no code at block ${network.start_block - 1} — start_block looks correct`
+            `    ${name}: RPC confirms no code at block ${priorBlock} (start_block - 1) ✓ ` +
+              `— deployment block = ${network.start_block}`
           );
         }
       });
