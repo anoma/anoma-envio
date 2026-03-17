@@ -48,15 +48,15 @@ networks:
     - name: ProtocolAdapter
       address:
         - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  # Aurora disabled: dRPC returns null for recent blocks (RpcSource error)
-  # - id: 1313161554 # Aurora
-  #   start_block: 188232610
-  #   rpc_config:
-  #     url: https://aurora.drpc.org
-  #   contracts:
-  #   - name: ProtocolAdapter
-  #     address:
-  #       - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  # Aurora idle: RPC returns null for recent blocks, using far-future start_block
+  - id: 1313161554 # Aurora
+    start_block: 999999999
+    rpc_config:
+      url: https://aurora.drpc.org
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
   - id: 56 # BNB Smart Chain
     start_block: 84845926
     rpc_config:
@@ -79,15 +79,15 @@ networks:
     - name: ProtocolAdapter
       address:
         - "0x33d4F0c88ef555E105Ba5e5F1aFbF34d6f650964"
-  # Aurora Testnet disabled: dRPC returns null for recent blocks (RpcSource error)
-  # - id: 1313161555 # Aurora Testnet
-  #   start_block: 237928857
-  #   rpc_config:
-  #     url: https://aurora-testnet.drpc.org
-  #   contracts:
-  #   - name: ProtocolAdapter
-  #     address:
-  #       - "0x24CEc6A74A0E39eE33C8356DB8655308112f587F"
+  # Aurora Testnet idle: RPC returns null for recent blocks, using far-future start_block
+  - id: 1313161555 # Aurora Testnet
+    start_block: 999999999
+    rpc_config:
+      url: https://aurora-testnet.drpc.org
+    contracts:
+    - name: ProtocolAdapter
+      address:
+        - "0x24CEc6A74A0E39eE33C8356DB8655308112f587F"
   - id: 11155111 # eth-sepolia
     start_block: 10134523
     contracts:
