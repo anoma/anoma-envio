@@ -51,7 +51,7 @@ networks:
   - id: 1313161554 # Aurora
     start_block: 188232610
     rpc_config:
-      url: https://mainnet.aurora.dev
+      url: https://aurora.drpc.org
     contracts:
     - name: ProtocolAdapter
       address:
@@ -81,7 +81,7 @@ networks:
   - id: 1313161555 # Aurora Testnet
     start_block: 237928857
     rpc_config:
-      url: https://testnet.aurora.dev
+      url: https://aurora-testnet.drpc.org
     contracts:
     - name: ProtocolAdapter
       address:
