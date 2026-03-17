@@ -59,7 +59,7 @@ networks:
   - id: 56 # BNB Smart Chain
     start_block: 84845926
     rpc_config:
-      url: https://bsc-dataseed.binance.org/
+      url: https://bnb-mainnet.g.alchemy.com/v2/HpELgZGbLaHV3RDAQL0H9
     contracts:
     - name: ProtocolAdapter
       address:
@@ -73,7 +73,7 @@ networks:
   - id: 97 # BNB Testnet
     start_block: 92241606
     rpc_config:
-      url: https://data-seed-prebsc-1-s1.binance.org:8545/
+      url: https://bnb-testnet.g.alchemy.com/v2/HpELgZGbLaHV3RDAQL0H9
     contracts:
     - name: ProtocolAdapter
       address:
