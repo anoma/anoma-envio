@@ -93,22 +93,51 @@ export function getRpcUrl(network: NetworkConfig): string | undefined {
 }
 
 /**
- * Make a JSON-RPC call to an EVM node.
+ * Make a JSON-RPC call to an EVM node with retry on rate limits.
  */
-export async function rpcCall(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {
-  const res = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const json = (await res.json()) as {
-    result?: unknown;
-    error?: { message: string };
-  };
-  if (json.error) {
-    throw new Error(`RPC error: ${json.error.message}`);
+export async function rpcCall(
+  rpcUrl: string,
+  method: string,
+  params: unknown[],
+  retries = 2
+): Promise<unknown> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    });
+    if (res.status === 429 && attempt < retries) {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      continue;
+    }
+    if (!res.ok) {
+      const err = new Error(`RPC HTTP ${res.status}: ${res.statusText}`) as Error & {
+        code: number;
+      };
+      err.code = res.status;
+      throw err;
+    }
+    const text = await res.text();
+    if (!text) {
+      throw new Error("RPC empty response");
+    }
+    const json = JSON.parse(text) as {
+      result?: unknown;
+      error?: { message: string; code?: number };
+    };
+    if (json.error) {
+      if (/compute units|rate limit/i.test(json.error.message) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      const err = new Error(`RPC error: ${json.error.message}`) as Error & { code?: number };
+      err.code = json.error.code;
+      throw err;
+    }
+    return json.result;
   }
-  return json.result;
+  throw new Error(`RPC call failed after ${retries + 1} attempts`);
 }
 
 export function toHex(n: number): string {
