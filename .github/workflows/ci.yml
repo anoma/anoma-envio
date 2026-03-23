@@ -294,3 +294,77 @@ jobs:
       - name: Teardown
         if: always()
         run: docker compose --profile build down
+
+  integration-all:
+    name: Integration (all chains)
+    needs: [setup, quality, test, build, integration]
+    runs-on: ubuntu-latest
+    env:
+      ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
+      ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure all chains for CI
+        run: |
+          chmod +x scripts/configure-ci-all-chains.sh
+          ./scripts/configure-ci-all-chains.sh
+
+      - name: Run Envio codegen
+        run: pnpm codegen
+
+      - name: Start indexer stack
+        run: docker compose --profile build up -d
+
+      - name: Wait for indexer to sync
+        run: |
+          echo "Polling Hasura for schema readiness..."
+          for i in $(seq 1 30); do
+            RESULT=$(curl -sf http://localhost:8080/v1/graphql \
+              -H 'Content-Type: application/json' \
+              -d '{"query":"{ Transaction(limit:1) { id } }"}' 2>/dev/null || echo '{}')
+            if echo "$RESULT" | grep -q '"Transaction"'; then
+              echo "Schema ready after $((i * 10))s"
+              sleep 15
+              exit 0
+            fi
+            echo "Attempt $i/30 — schema not ready, retrying in 10s..."
+            sleep 10
+          done
+          echo "Timed out waiting for schema (300s)"
+          exit 1
+
+      - name: Run integration tests
+        run: |
+          export ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
+          pnpm ts-mocha --timeout 120000 'test/graphql.test.ts'
+
+      - name: Docker compose logs
+        if: failure()
+        run: docker compose --profile build logs
+
+      - name: Teardown
+        if: always()
+        run: docker compose --profile build down
