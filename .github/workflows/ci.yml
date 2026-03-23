@@ -62,8 +62,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Envio codegen
-        run: pnpm codegen
+      - name: Resolve config env vars and run Envio codegen
+        run: |
+          perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+          pnpm codegen
 
       - name: Check formatting
         run: pnpm prettier --check "src/**/*.ts" "test/**/*.ts"
@@ -97,8 +99,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Envio codegen
-        run: pnpm codegen
+      - name: Resolve config env vars and run Envio codegen
+        run: |
+          perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+          pnpm codegen
 
       - name: Run tests
         run: pnpm test
@@ -126,8 +130,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Envio codegen
-        run: pnpm codegen
+      - name: Resolve config env vars and run Envio codegen
+        run: |
+          perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+          pnpm codegen
 
       - name: Build
         run: pnpm build
@@ -161,8 +167,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Envio codegen
-        run: pnpm codegen
+      - name: Resolve config env vars and run Envio codegen
+        run: |
+          perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+          pnpm codegen
 
       - name: Run config validation
         run: |
@@ -204,8 +212,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Envio codegen
-        run: pnpm codegen
+      - name: Resolve config env vars and run Envio codegen
+        run: |
+          perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+          pnpm codegen
 
       - name: Configure for CI (${{ matrix.name }} only)
         run: |
@@ -234,10 +244,14 @@ jobs:
             -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
             | jq -r '.result')
           TIP=$((TIP_HEX))
-          RECENT_START=$((TIP - 5000))
-          export RECENT_START
-          echo "Chain tip: $TIP, setting start_block to $RECENT_START"
-          yq -i '.networks[0].start_block = env(RECENT_START)' config.yaml
+          if [ "$TIP" -gt 5000 ]; then
+            RECENT_START=$((TIP - 5000))
+            export RECENT_START
+            echo "Chain tip: $TIP, setting start_block to $RECENT_START"
+            yq -i '.networks[0].start_block = env(RECENT_START)' config.yaml
+          else
+            echo "WARNING: Could not get valid chain tip (got $TIP), keeping config start_block"
+          fi
 
           cat config.yaml
 
