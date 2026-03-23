@@ -120,6 +120,6 @@ services:
   # instead of building it locally.
   envio-indexer-image:
     <<: *envio-indexer
-    image: ghcr.io/anoma/anoma-envio:next-envio-
+    image: ghcr.io/anoma/anoma-envio:${ENVIO_IMAGE_TAG:-next-envio}
     profiles:
       - prebuilt
