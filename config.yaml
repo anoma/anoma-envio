@@ -51,7 +51,7 @@ networks:
   - id: 56 # BNB Smart Chain
     start_block: 84845926
     rpc_config:
-      url: ${BNB_MAINNET_RPC_URL:-https://bsc-dataseed1.binance.org}
+      url: ${ENVIO_BNB_MAINNET_RPC_URL:-https://bsc-dataseed1.binance.org}
     contracts:
     - name: ProtocolAdapter
       address:
@@ -65,7 +65,7 @@ networks:
   - id: 97 # BNB Testnet
     start_block: 92241606
     rpc_config:
-      url: ${BNB_TESTNET_RPC_URL:-https://bsc-testnet-dataseed.bnbchain.org}
+      url: ${ENVIO_BNB_TESTNET_RPC_URL:-https://bsc-testnet-dataseed.bnbchain.org}
     contracts:
     - name: ProtocolAdapter
       address:
