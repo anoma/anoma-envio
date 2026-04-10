@@ -15,6 +15,11 @@ contracts:
       - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
       - event: Unpaused(address account)
+  - name: AnomaPayERC20Forwarder
+    handler: src/AnomaPayERC20ForwarderHandlers.ts
+    events:
+      - event: Wrapped(address indexed token, address indexed from, uint128 amount)
+      - event: Unwrapped(address indexed token, address indexed to, uint128 amount)
 field_selection:
   transaction_fields:
     - "hash"
@@ -30,24 +35,36 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0x775C81A47F2618a8594a7a7f4A3Df2a300337559"
   - id: 42161 # Arbitrum
     start_block: 425772682
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0xfAa9DE773Be11fc759A16F294d32BB2261bF818B"
   - id: 8453 # Base
     start_block: 41364871
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0xfAa9DE773Be11fc759A16F294d32BB2261bF818B"
   - id: 10 # Optimism
     start_block: 146960226
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0xfAa9DE773Be11fc759A16F294d32BB2261bF818B"
   - id: 56 # BSC
     start_block: 84845926
     rpc_config:
@@ -56,16 +73,25 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0xDe6A308ed57AF26BFf059e6C550BD4908aC1840e"
   - id: 84532 # Base Sepolia
     start_block: 36875184
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0xfAa9DE773Be11fc759A16F294d32BB2261bF818B"
   - id: 11155111 # eth-sepolia
     start_block: 10134523
     contracts:
       - name: ProtocolAdapter
         address:
           - "0xf152bba809d6cba122579cee997a54b8f3fba417"
+      - name: AnomaPayERC20Forwarder
+        address:
+          - "0x0A62bE41E66841f693f922991C4e40C89cb0CFDF"
 unordered_multichain_mode: true

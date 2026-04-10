@@ -241,6 +241,47 @@ type Stats {
   lastUpdatedTimestamp: Int!
 }
 
+# ============================================
+# AnomaPayERC20Forwarder Types
+# ============================================
+
+# ERC20Wrap - A Wrapped event from the AnomaPayERC20Forwarder contract (token deposit)
+type ERC20Wrap {
+  id: ID!  # Format: {chainId}_{txHash}_{logIndex}
+  token: String!
+  from: String!
+  amount: BigInt!
+  blockNumber: Int!
+  txHash: String!
+  logIndex: Int!
+  timestamp: Int!
+  chainId: Int!
+}
+
+# ERC20Unwrap - An Unwrapped event from the AnomaPayERC20Forwarder contract (token withdrawal)
+type ERC20Unwrap {
+  id: ID!  # Format: {chainId}_{txHash}_{logIndex}
+  token: String!
+  to: String!
+  amount: BigInt!
+  blockNumber: Int!
+  txHash: String!
+  logIndex: Int!
+  timestamp: Int!
+  chainId: Int!
+}
+
+# AnomaPayERC20ForwarderStats - Global singleton for AnomaPayERC20Forwarder aggregate stats (id: "global")
+type AnomaPayERC20ForwarderStats {
+  id: ID!  # Always "global" - singleton pattern
+  totalWraps: Int!
+  totalUnwraps: Int!
+  totalWrappedVolume: BigInt!
+  totalUnwrappedVolume: BigInt!
+  lastUpdatedBlock: Int!
+  lastUpdatedTimestamp: Int!
+}
+
 # DailyStats - Per-day statistics for time-series charts (id: "YYYY-MM-DD")
 # Same counters as Stats (except distinctLogics) bucketed by UTC day.
 type DailyStats {
