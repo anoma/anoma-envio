@@ -48,7 +48,7 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  - id: 56 # BNB Smart Chain
+  - id: 56 # BSC
     start_block: 84845926
     rpc_config:
       url: ${ENVIO_BNB_MAINNET_RPC_URL:-https://bsc-dataseed1.binance.org}
