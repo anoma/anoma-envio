@@ -27,53 +27,45 @@ networks:
   - id: 1 # Mainnet
     start_block: 24326330
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
+      - name: ProtocolAdapter
+        address:
+          - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
   - id: 42161 # Arbitrum
     start_block: 425772682
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 8453 # Base
     start_block: 41364871
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 10 # Optimism
     start_block: 146960226
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 56 # BNB Smart Chain
     start_block: 84845926
     rpc_config:
       url: ${ENVIO_BNB_MAINNET_RPC_URL:-https://bsc-dataseed1.binance.org}
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+      - name: ProtocolAdapter
+        address:
+          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
   - id: 84532 # Base Sepolia
     start_block: 36875184
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  - id: 97 # BNB Testnet
-    start_block: 92241606
-    rpc_config:
-      url: ${ENVIO_BNB_TESTNET_RPC_URL:-https://bsc-testnet-dataseed.bnbchain.org}
-    contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0x33d4F0c88ef555E105Ba5e5F1aFbF34d6f650964"
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 11155111 # eth-sepolia
     start_block: 10134523
     contracts:
-    - name: ProtocolAdapter
-      address:
-        - "0xf152bba809d6cba122579cee997a54b8f3fba417"
+      - name: ProtocolAdapter
+        address:
+          - "0xf152bba809d6cba122579cee997a54b8f3fba417"
 unordered_multichain_mode: true
