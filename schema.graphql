@@ -26,12 +26,12 @@ enum PayloadCategory {
 # EVMTransaction - The EVM transaction that carries Anoma transaction(s)
 # This represents the blockchain carrier/wrapper, not the Anoma payload.
 # One EVM transaction may carry multiple Anoma transactions (e.g., via multicall).
-type EVMTransaction {
+type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!  # Format: {chainId}_{txHash}
   txHash: String!
-  blockNumber: Int!
-  timestamp: Int!
-  chainId: Int!
+  blockNumber: Int! @index
+  timestamp: Int! @index
+  chainId: Int! @index
 
   # EVM transaction metadata
   from: String
@@ -53,7 +53,7 @@ type EVMTransaction {
 type Transaction {
   id: ID!  # Format: {chainId}_{txHash}_{logIndex}
   logIndex: Int!  # EVM event log index of the TransactionExecuted event
-  contractAddress: String!
+  contractAddress: String! @index
 
   # From TransactionExecuted event
   tagHashes: [String!]!
@@ -73,14 +73,14 @@ type Transaction {
 
 # Action - Provides context separation between non-intersecting sets of resources
 # Corresponds to: struct Action { Logic.VerifierInput[] logicVerifierInputs; Compliance.VerifierInput[] complianceVerifierInputs; }
-type Action {
+type Action @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
   index: Int!
   actionTreeRoot: String!
   actionTagCount: Int!
-  blockNumber: Int!
-  chainId: Int!
-  timestamp: Int!
+  blockNumber: Int! @index
+  chainId: Int! @index
+  timestamp: Int! @index
 
   # Relationships
   transaction: Transaction!
@@ -140,13 +140,13 @@ type LogicInput {
 }
 
 # Tag - A reference to an Anoma resource identified by its tag hash (nullifier or commitment)
-type Tag {
+type Tag @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
-  tagHash: String! # Nullifier (if consumed) or commitment (if created)
+  tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
-  blockNumber: Int!
-  chainId: Int!
+  blockNumber: Int! @index
+  chainId: Int! @index
 
   # Logic reference from TransactionExecuted.logicRefs
   logicRef: String
@@ -179,14 +179,14 @@ type Payload {
 # ============================================
 
 # CommitmentTreeRoot - Merkle tree root for resource commitments
-type CommitmentTreeRoot {
+type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) {
   id: ID!
   root: String!
-  blockNumber: Int!
+  blockNumber: Int! @index
   logIndex: Int!  # EVM log index — tiebreaker for ordering within a block
   txHash: String!
-  timestamp: Int!
-  chainId: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 }
 
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
