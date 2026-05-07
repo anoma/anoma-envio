@@ -50,10 +50,16 @@ type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["
 
 # Transaction - The Anoma transaction payload embedded in an EVM transaction
 # Corresponds to: struct Transaction { Action[] actions; bytes deltaProof; bytes aggregationProof; }
-type Transaction {
+type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "blockNumber", "logIndex"]) @index(fields: ["contractAddress", "chainId", "blockNumber", "logIndex"]) {
   id: ID!  # Format: {chainId}_{txHash}_{logIndex}
-  logIndex: Int!  # EVM event log index of the TransactionExecuted event
+  logIndex: Int! @index # EVM event log index of the TransactionExecuted event
   contractAddress: String! @index
+
+  # Denormalized from EVMTransaction for efficient sorting/filtering
+  # (eliminates cross-table JOIN for ORDER BY blockNumber/timestamp)
+  blockNumber: Int! @index
+  timestamp: Int! @index
+  chainId: Int! @index
 
   # From TransactionExecuted event
   tagHashes: [String!]!
@@ -64,7 +70,7 @@ type Transaction {
   aggregationProof: String
 
   # Relationship to EVM carrier
-  evmTransaction: EVMTransaction!
+  evmTransaction: EVMTransaction! @index
 
   # Relationships (note: tags is a convenience, canonical path is via actions/complianceUnits)
   actions: [Action!]! @derivedFrom(field: "transaction")
@@ -83,7 +89,7 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   timestamp: Int! @index
 
   # Relationships
-  transaction: Transaction!
+  transaction: Transaction! @index
   complianceUnits: [ComplianceUnit!]! @derivedFrom(field: "action")
   logicInputs: [LogicInput!]! @derivedFrom(field: "action")
 }
@@ -112,7 +118,7 @@ type ComplianceUnit {
   unitDeltaY: String!
 
   # Relationships
-  action: Action!
+  action: Action! @index
   consumedTag: Tag
   createdTag: Tag
 }
@@ -135,7 +141,7 @@ type LogicInput {
   applicationPayloadCount: Int!
 
   # Relationships
-  action: Action!
+  action: Action! @index
   tag: Tag
 }
 
@@ -152,7 +158,7 @@ type Tag @index(fields: ["chainId", "blockNumber"]) {
   logicRef: String
 
   # Relationships
-  transaction: Transaction!
+  transaction: Transaction! @index
   logicInput: LogicInput
   complianceUnit: ComplianceUnit # The compliance unit this tag belongs to (use isConsumed to determine side)
   payloads: [Payload!]! @derivedFrom(field: "tag")
@@ -171,7 +177,7 @@ type Payload {
   index: Int!
   blob: String!
   deletionCriterion: DeletionCriterion
-  tag: Tag
+  tag: Tag @index
 }
 
 # ============================================
