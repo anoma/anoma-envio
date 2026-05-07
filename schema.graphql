@@ -143,12 +143,13 @@ type LogicInput {
 }
 
 # Tag - A reference to an Anoma resource identified by its tag hash (nullifier or commitment)
-type Tag @index(fields: ["chainId", "blockNumber"]) {
+type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: Int! @index
+  timestamp: Int! @index
   chainId: Int! @index
 
   # Logic reference from TransactionExecuted.logicRefs
