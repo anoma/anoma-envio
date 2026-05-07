@@ -247,136 +247,6 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
 }
 
 /**
- * Updates stats with increments and saves to context.
- */
-async function incrementStats(
-  context: handlerContext,
-  blockNumber: number,
-  timestamp: number,
-  increments: {
-    transactions?: number;
-    tags?: number;
-    tagsConsumed?: number;
-    tagsCreated?: number;
-    actions?: number;
-    complianceUnits?: number;
-    logicInputs?: number;
-    commitmentRoots?: number;
-    distinctLogics?: number;
-    externalCalls?: number;
-    forwarderCalls?: number;
-    resourcePayloads?: number;
-    discoveryPayloads?: number;
-    applicationPayloads?: number;
-  }
-): Promise<void> {
-  const stats = await getOrCreateStats(context);
-  const updated: Stats = {
-    ...stats,
-    transactions: stats.transactions + (increments.transactions || 0),
-    tags: stats.tags + (increments.tags || 0),
-    tagsConsumed: stats.tagsConsumed + (increments.tagsConsumed || 0),
-    tagsCreated: stats.tagsCreated + (increments.tagsCreated || 0),
-    actions: stats.actions + (increments.actions || 0),
-    complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
-    logicInputs: stats.logicInputs + (increments.logicInputs || 0),
-    commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
-    distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
-    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
-    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
-    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
-    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
-    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
-    lastUpdatedBlock: blockNumber,
-    lastUpdatedTimestamp: timestamp,
-  };
-  context.Stats.set(updated);
-}
-
-// ============================================
-// DailyStats (per-day bucketing)
-// ============================================
-
-/**
- * Gets the current daily stats for the given timestamp or creates a new one with zero counts.
- */
-async function getOrCreateDailyStats(
-  context: handlerContext,
-  timestamp: number
-): Promise<DailyStats> {
-  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
-  const existing = await context.DailyStats.get(dateKey);
-  if (existing) {
-    return existing;
-  }
-  return {
-    id: dateKey,
-    dayTimestamp,
-    transactions: 0,
-    tags: 0,
-    tagsConsumed: 0,
-    tagsCreated: 0,
-    actions: 0,
-    complianceUnits: 0,
-    logicInputs: 0,
-    commitmentRoots: 0,
-    externalCalls: 0,
-    forwarderCalls: 0,
-    resourcePayloads: 0,
-    discoveryPayloads: 0,
-    applicationPayloads: 0,
-    lastUpdatedBlock: 0,
-    lastUpdatedTimestamp: 0,
-  };
-}
-
-/**
- * Updates daily stats with increments and saves to context.
- * Same as incrementStats but keyed by UTC day. Ignores distinctLogics.
- */
-async function incrementDailyStats(
-  context: handlerContext,
-  blockNumber: number,
-  timestamp: number,
-  increments: {
-    transactions?: number;
-    tags?: number;
-    tagsConsumed?: number;
-    tagsCreated?: number;
-    actions?: number;
-    complianceUnits?: number;
-    logicInputs?: number;
-    commitmentRoots?: number;
-    externalCalls?: number;
-    forwarderCalls?: number;
-    resourcePayloads?: number;
-    discoveryPayloads?: number;
-    applicationPayloads?: number;
-  }
-): Promise<void> {
-  const daily = await getOrCreateDailyStats(context, timestamp);
-  const updated: DailyStats = {
-    ...daily,
-    transactions: daily.transactions + (increments.transactions || 0),
-    tags: daily.tags + (increments.tags || 0),
-    tagsConsumed: daily.tagsConsumed + (increments.tagsConsumed || 0),
-    tagsCreated: daily.tagsCreated + (increments.tagsCreated || 0),
-    actions: daily.actions + (increments.actions || 0),
-    complianceUnits: daily.complianceUnits + (increments.complianceUnits || 0),
-    logicInputs: daily.logicInputs + (increments.logicInputs || 0),
-    commitmentRoots: daily.commitmentRoots + (increments.commitmentRoots || 0),
-    externalCalls: daily.externalCalls + (increments.externalCalls || 0),
-    forwarderCalls: daily.forwarderCalls + (increments.forwarderCalls || 0),
-    resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
-    discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
-    applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
-    lastUpdatedBlock: blockNumber,
-    lastUpdatedTimestamp: timestamp,
-  };
-  context.DailyStats.set(updated);
-}
-
-/**
  * Unified helper: increments both global Stats and per-day DailyStats.
  * All handler call sites use this instead of calling incrementStats directly.
  */
@@ -401,8 +271,72 @@ async function incrementAllStats(
     applicationPayloads?: number;
   }
 ): Promise<void> {
-  await incrementStats(context, blockNumber, timestamp, increments);
-  await incrementDailyStats(context, blockNumber, timestamp, increments);
+  // Parallel reads for Stats and DailyStats (independent entities)
+  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
+  const [stats, daily] = await Promise.all([
+    getOrCreateStats(context),
+    context.DailyStats.get(dateKey).then(
+      (existing) =>
+        existing || {
+          id: dateKey,
+          dayTimestamp,
+          transactions: 0,
+          tags: 0,
+          tagsConsumed: 0,
+          tagsCreated: 0,
+          actions: 0,
+          complianceUnits: 0,
+          logicInputs: 0,
+          commitmentRoots: 0,
+          externalCalls: 0,
+          forwarderCalls: 0,
+          resourcePayloads: 0,
+          discoveryPayloads: 0,
+          applicationPayloads: 0,
+          lastUpdatedBlock: 0,
+          lastUpdatedTimestamp: 0,
+        }
+    ),
+  ]);
+
+  context.Stats.set({
+    ...stats,
+    transactions: stats.transactions + (increments.transactions || 0),
+    tags: stats.tags + (increments.tags || 0),
+    tagsConsumed: stats.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: stats.tagsCreated + (increments.tagsCreated || 0),
+    actions: stats.actions + (increments.actions || 0),
+    complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: stats.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
+    distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
+    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
+
+  context.DailyStats.set({
+    ...daily,
+    transactions: daily.transactions + (increments.transactions || 0),
+    tags: daily.tags + (increments.tags || 0),
+    tagsConsumed: daily.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: daily.tagsCreated + (increments.tagsCreated || 0),
+    actions: daily.actions + (increments.actions || 0),
+    complianceUnits: daily.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: daily.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: daily.commitmentRoots + (increments.commitmentRoots || 0),
+    externalCalls: daily.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: daily.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
 }
 
 // ============================================
