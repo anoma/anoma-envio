@@ -625,6 +625,8 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       context.ComplianceUnit.set({
         id: complianceUnitId,
         index: cuIndex,
+        timestamp: event.block.timestamp,
+        chainId: event.chainId,
         proof: cu.proof || undefined,
         consumedNullifier: cu.instance.consumed.nullifier,
         consumedLogicRef: cu.instance.consumed.logicRef,
@@ -658,6 +660,8 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
       const logicEntity: LogicInput = {
         id: logicInputId,
         index: liIndex,
+        timestamp: event.block.timestamp,
+        chainId: event.chainId,
         tagHash: li.tag,
         verifyingKey: li.verifyingKey,
         isConsumed: isConsumed,

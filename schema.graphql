@@ -93,9 +93,11 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
 
 # ComplianceUnit - One consumed + one created resource pair
 # Corresponds to: Compliance.VerifierInput { bytes proof; Instance instance; }
-type ComplianceUnit {
+type ComplianceUnit @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 
   # Proof
   proof: String
@@ -122,9 +124,11 @@ type ComplianceUnit {
 
 # LogicInput - Logic verifier input for a resource
 # Corresponds to: Logic.VerifierInput { bytes32 tag; bytes32 verifyingKey; AppData appData; bytes proof; }
-type LogicInput {
+type LogicInput @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 
   tagHash: String!
   verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
