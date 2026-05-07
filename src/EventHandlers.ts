@@ -483,6 +483,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
         index: index,
         isConsumed: isConsumed,
         blockNumber: event.block.number,
+        timestamp: event.block.timestamp,
         chainId: event.chainId,
         transaction_id: txId,
         logicRef: logicRef || undefined,
@@ -745,6 +746,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
       index: 0, // Placeholder - will be set by TransactionExecuted
       isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
       blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
       chainId: event.chainId,
       transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
       logicRef: undefined, // Will be set by TransactionExecuted
