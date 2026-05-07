@@ -417,9 +417,6 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     hash: string;
     input?: string;
     from?: string;
-    gas?: bigint;
-    gasPrice?: bigint;
-    gasUsed?: bigint;
     value?: bigint;
   };
 
@@ -440,9 +437,6 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     chainId: event.chainId,
     from: tx.from,
     value: tx.value,
-    gasPrice: tx.gasPrice,
-    gas: tx.gas,
-    gasUsed: tx.gasUsed,
   };
 
   context.EVMTransaction.set(evmTxEntity);
