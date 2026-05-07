@@ -169,7 +169,7 @@ type Tag @index(fields: ["chainId", "blockNumber"]) {
 # Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
   id: ID!
-  category: PayloadCategory!  # Discriminator for payload type
+  category: PayloadCategory! @index # Discriminator for payload type
   tagHash: String!
   index: Int!
   blob: String!
@@ -182,7 +182,7 @@ type Payload {
 # ============================================
 
 # CommitmentTreeRoot - Merkle tree root for resource commitments
-type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) {
+type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) @index(fields: ["chainId", "blockNumber", "logIndex"]) {
   id: ID!
   root: String!
   blockNumber: Int! @index
@@ -193,15 +193,15 @@ type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) {
 }
 
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
-type ForwarderCall {
+type ForwarderCall @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
   untrustedForwarder: String!
   input: String!
   output: String!
-  blockNumber: Int!
+  blockNumber: Int! @index
   txHash: String!
-  timestamp: Int!
-  chainId: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 }
 
 # ============================================
