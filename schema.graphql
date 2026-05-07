@@ -36,9 +36,6 @@ type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["
   # EVM transaction metadata
   from: String
   value: BigInt
-  gasPrice: BigInt
-  gas: BigInt
-  gasUsed: BigInt
 
   # Relationships
   transactions: [Transaction!]! @derivedFrom(field: "evmTransaction")
