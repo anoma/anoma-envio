@@ -1,6 +1,7 @@
 .git
 .github
 node_modules
+generated/node_modules
 .pnpm-store
 build
 coverage
