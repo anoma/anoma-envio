@@ -5,7 +5,7 @@ ENV PATH=$PNPM_HOME:$PATH
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack install --global pnpm@9.15.9
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile

@@ -36,9 +36,6 @@ type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["
   # EVM transaction metadata
   from: String
   value: BigInt
-  gasPrice: BigInt
-  gas: BigInt
-  gasUsed: BigInt
 
   # Relationships
   transactions: [Transaction!]! @derivedFrom(field: "evmTransaction")
@@ -50,10 +47,16 @@ type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["
 
 # Transaction - The Anoma transaction payload embedded in an EVM transaction
 # Corresponds to: struct Transaction { Action[] actions; bytes deltaProof; bytes aggregationProof; }
-type Transaction {
+type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "blockNumber", "logIndex"]) @index(fields: ["contractAddress", "chainId", "blockNumber", "logIndex"]) {
   id: ID!  # Format: {chainId}_{txHash}_{logIndex}
-  logIndex: Int!  # EVM event log index of the TransactionExecuted event
+  logIndex: Int! @index # EVM event log index of the TransactionExecuted event
   contractAddress: String! @index
+
+  # Denormalized from EVMTransaction for efficient sorting/filtering
+  # (eliminates cross-table JOIN for ORDER BY blockNumber/timestamp)
+  blockNumber: Int! @index
+  timestamp: Int! @index
+  chainId: Int! @index
 
   # From TransactionExecuted event
   tagHashes: [String!]!
@@ -64,7 +67,7 @@ type Transaction {
   aggregationProof: String
 
   # Relationship to EVM carrier
-  evmTransaction: EVMTransaction!
+  evmTransaction: EVMTransaction! @index
 
   # Relationships (note: tags is a convenience, canonical path is via actions/complianceUnits)
   actions: [Action!]! @derivedFrom(field: "transaction")
@@ -83,16 +86,18 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   timestamp: Int! @index
 
   # Relationships
-  transaction: Transaction!
+  transaction: Transaction! @index
   complianceUnits: [ComplianceUnit!]! @derivedFrom(field: "action")
   logicInputs: [LogicInput!]! @derivedFrom(field: "action")
 }
 
 # ComplianceUnit - One consumed + one created resource pair
 # Corresponds to: Compliance.VerifierInput { bytes proof; Instance instance; }
-type ComplianceUnit {
+type ComplianceUnit @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 
   # Proof
   proof: String
@@ -112,16 +117,18 @@ type ComplianceUnit {
   unitDeltaY: String!
 
   # Relationships
-  action: Action!
+  action: Action! @index
   consumedTag: Tag
   createdTag: Tag
 }
 
 # LogicInput - Logic verifier input for a resource
 # Corresponds to: Logic.VerifierInput { bytes32 tag; bytes32 verifyingKey; AppData appData; bytes proof; }
-type LogicInput {
+type LogicInput @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 
   tagHash: String!
   verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
@@ -135,24 +142,25 @@ type LogicInput {
   applicationPayloadCount: Int!
 
   # Relationships
-  action: Action!
+  action: Action! @index
   tag: Tag
 }
 
 # Tag - A reference to an Anoma resource identified by its tag hash (nullifier or commitment)
-type Tag @index(fields: ["chainId", "blockNumber"]) {
+type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: Int! @index
+  timestamp: Int! @index
   chainId: Int! @index
 
   # Logic reference from TransactionExecuted.logicRefs
   logicRef: String
 
   # Relationships
-  transaction: Transaction!
+  transaction: Transaction! @index
   logicInput: LogicInput
   complianceUnit: ComplianceUnit # The compliance unit this tag belongs to (use isConsumed to determine side)
   payloads: [Payload!]! @derivedFrom(field: "tag")
@@ -166,12 +174,12 @@ type Tag @index(fields: ["chainId", "blockNumber"]) {
 # Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
   id: ID!
-  category: PayloadCategory!  # Discriminator for payload type
+  category: PayloadCategory! @index # Discriminator for payload type
   tagHash: String!
   index: Int!
   blob: String!
   deletionCriterion: DeletionCriterion
-  tag: Tag
+  tag: Tag @index
 }
 
 # ============================================
@@ -179,7 +187,7 @@ type Payload {
 # ============================================
 
 # CommitmentTreeRoot - Merkle tree root for resource commitments
-type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) {
+type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) @index(fields: ["chainId", "blockNumber", "logIndex"]) {
   id: ID!
   root: String!
   blockNumber: Int! @index
@@ -190,15 +198,15 @@ type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) {
 }
 
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
-type ForwarderCall {
+type ForwarderCall @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
   untrustedForwarder: String!
   input: String!
   output: String!
-  blockNumber: Int!
+  blockNumber: Int! @index
   txHash: String!
-  timestamp: Int!
-  chainId: Int!
+  timestamp: Int! @index
+  chainId: Int! @index
 }
 
 # ============================================

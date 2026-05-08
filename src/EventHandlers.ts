@@ -247,136 +247,6 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
 }
 
 /**
- * Updates stats with increments and saves to context.
- */
-async function incrementStats(
-  context: handlerContext,
-  blockNumber: number,
-  timestamp: number,
-  increments: {
-    transactions?: number;
-    tags?: number;
-    tagsConsumed?: number;
-    tagsCreated?: number;
-    actions?: number;
-    complianceUnits?: number;
-    logicInputs?: number;
-    commitmentRoots?: number;
-    distinctLogics?: number;
-    externalCalls?: number;
-    forwarderCalls?: number;
-    resourcePayloads?: number;
-    discoveryPayloads?: number;
-    applicationPayloads?: number;
-  }
-): Promise<void> {
-  const stats = await getOrCreateStats(context);
-  const updated: Stats = {
-    ...stats,
-    transactions: stats.transactions + (increments.transactions || 0),
-    tags: stats.tags + (increments.tags || 0),
-    tagsConsumed: stats.tagsConsumed + (increments.tagsConsumed || 0),
-    tagsCreated: stats.tagsCreated + (increments.tagsCreated || 0),
-    actions: stats.actions + (increments.actions || 0),
-    complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
-    logicInputs: stats.logicInputs + (increments.logicInputs || 0),
-    commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
-    distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
-    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
-    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
-    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
-    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
-    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
-    lastUpdatedBlock: blockNumber,
-    lastUpdatedTimestamp: timestamp,
-  };
-  context.Stats.set(updated);
-}
-
-// ============================================
-// DailyStats (per-day bucketing)
-// ============================================
-
-/**
- * Gets the current daily stats for the given timestamp or creates a new one with zero counts.
- */
-async function getOrCreateDailyStats(
-  context: handlerContext,
-  timestamp: number
-): Promise<DailyStats> {
-  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
-  const existing = await context.DailyStats.get(dateKey);
-  if (existing) {
-    return existing;
-  }
-  return {
-    id: dateKey,
-    dayTimestamp,
-    transactions: 0,
-    tags: 0,
-    tagsConsumed: 0,
-    tagsCreated: 0,
-    actions: 0,
-    complianceUnits: 0,
-    logicInputs: 0,
-    commitmentRoots: 0,
-    externalCalls: 0,
-    forwarderCalls: 0,
-    resourcePayloads: 0,
-    discoveryPayloads: 0,
-    applicationPayloads: 0,
-    lastUpdatedBlock: 0,
-    lastUpdatedTimestamp: 0,
-  };
-}
-
-/**
- * Updates daily stats with increments and saves to context.
- * Same as incrementStats but keyed by UTC day. Ignores distinctLogics.
- */
-async function incrementDailyStats(
-  context: handlerContext,
-  blockNumber: number,
-  timestamp: number,
-  increments: {
-    transactions?: number;
-    tags?: number;
-    tagsConsumed?: number;
-    tagsCreated?: number;
-    actions?: number;
-    complianceUnits?: number;
-    logicInputs?: number;
-    commitmentRoots?: number;
-    externalCalls?: number;
-    forwarderCalls?: number;
-    resourcePayloads?: number;
-    discoveryPayloads?: number;
-    applicationPayloads?: number;
-  }
-): Promise<void> {
-  const daily = await getOrCreateDailyStats(context, timestamp);
-  const updated: DailyStats = {
-    ...daily,
-    transactions: daily.transactions + (increments.transactions || 0),
-    tags: daily.tags + (increments.tags || 0),
-    tagsConsumed: daily.tagsConsumed + (increments.tagsConsumed || 0),
-    tagsCreated: daily.tagsCreated + (increments.tagsCreated || 0),
-    actions: daily.actions + (increments.actions || 0),
-    complianceUnits: daily.complianceUnits + (increments.complianceUnits || 0),
-    logicInputs: daily.logicInputs + (increments.logicInputs || 0),
-    commitmentRoots: daily.commitmentRoots + (increments.commitmentRoots || 0),
-    externalCalls: daily.externalCalls + (increments.externalCalls || 0),
-    forwarderCalls: daily.forwarderCalls + (increments.forwarderCalls || 0),
-    resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
-    discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
-    applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
-    lastUpdatedBlock: blockNumber,
-    lastUpdatedTimestamp: timestamp,
-  };
-  context.DailyStats.set(updated);
-}
-
-/**
  * Unified helper: increments both global Stats and per-day DailyStats.
  * All handler call sites use this instead of calling incrementStats directly.
  */
@@ -401,8 +271,72 @@ async function incrementAllStats(
     applicationPayloads?: number;
   }
 ): Promise<void> {
-  await incrementStats(context, blockNumber, timestamp, increments);
-  await incrementDailyStats(context, blockNumber, timestamp, increments);
+  // Parallel reads for Stats and DailyStats (independent entities)
+  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
+  const [stats, daily] = await Promise.all([
+    getOrCreateStats(context),
+    context.DailyStats.get(dateKey).then(
+      (existing) =>
+        existing || {
+          id: dateKey,
+          dayTimestamp,
+          transactions: 0,
+          tags: 0,
+          tagsConsumed: 0,
+          tagsCreated: 0,
+          actions: 0,
+          complianceUnits: 0,
+          logicInputs: 0,
+          commitmentRoots: 0,
+          externalCalls: 0,
+          forwarderCalls: 0,
+          resourcePayloads: 0,
+          discoveryPayloads: 0,
+          applicationPayloads: 0,
+          lastUpdatedBlock: 0,
+          lastUpdatedTimestamp: 0,
+        }
+    ),
+  ]);
+
+  context.Stats.set({
+    ...stats,
+    transactions: stats.transactions + (increments.transactions || 0),
+    tags: stats.tags + (increments.tags || 0),
+    tagsConsumed: stats.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: stats.tagsCreated + (increments.tagsCreated || 0),
+    actions: stats.actions + (increments.actions || 0),
+    complianceUnits: stats.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: stats.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: stats.commitmentRoots + (increments.commitmentRoots || 0),
+    distinctLogics: stats.distinctLogics + (increments.distinctLogics || 0),
+    externalCalls: stats.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: stats.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: stats.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: stats.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: stats.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
+
+  context.DailyStats.set({
+    ...daily,
+    transactions: daily.transactions + (increments.transactions || 0),
+    tags: daily.tags + (increments.tags || 0),
+    tagsConsumed: daily.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: daily.tagsCreated + (increments.tagsCreated || 0),
+    actions: daily.actions + (increments.actions || 0),
+    complianceUnits: daily.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: daily.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: daily.commitmentRoots + (increments.commitmentRoots || 0),
+    externalCalls: daily.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: daily.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
 }
 
 // ============================================
@@ -417,9 +351,6 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     hash: string;
     input?: string;
     from?: string;
-    gas?: bigint;
-    gasPrice?: bigint;
-    gasUsed?: bigint;
     value?: bigint;
   };
 
@@ -440,9 +371,6 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     chainId: event.chainId,
     from: tx.from,
     value: tx.value,
-    gasPrice: tx.gasPrice,
-    gas: tx.gas,
-    gasUsed: tx.gasUsed,
   };
 
   context.EVMTransaction.set(evmTxEntity);
@@ -452,6 +380,9 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     id: txId,
     logIndex: event.logIndex,
     contractAddress: event.srcAddress,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    chainId: event.chainId,
     tagHashes: event.params.tags,
     logicRefs: event.params.logicRefs,
     deltaProof: decoded?.deltaProof,
@@ -464,8 +395,8 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   // Retroactively update Actions created by earlier ActionExecuted events
   // so their transaction_id points to this Transaction (not the temporary evmTxId)
   const actionIds = pendingActionIds.get(evmTxId) || [];
-  for (const actionId of actionIds) {
-    const action = await context.Action.get(actionId);
+  const actions = await Promise.all(actionIds.map((id) => context.Action.get(id)));
+  for (const action of actions) {
     if (action) {
       context.Action.set({ ...action, transaction_id: txId });
     }
@@ -516,69 +447,63 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     }
   }
 
+  // Batch-fetch all existing tags and logicRefs in parallel (eliminates N+1 reads)
+  const tagIds = event.params.tags.map((tagHash) => createTagId(event.chainId, tagHash));
+  const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
+  const [existingTags, existingLogicRefs] = await Promise.all([
+    Promise.all(tagIds.map((id) => context.Tag.get(id))),
+    Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
+  ]);
+
   // Update/Create Tag entities for each tag hash
   // Tags are in alternating order: consumed (nullifier), created (commitment), ...
   for (let index = 0; index < event.params.tags.length; index++) {
     const tagHash = event.params.tags[index];
     const isConsumed = isConsumedIndex(index);
-    const tagId = createTagId(event.chainId, tagHash);
+    const tagId = tagIds[index];
     const logicRef = event.params.logicRefs[index];
-
-    // Find linked compliance unit and logic input
-    // Note: complianceUnit_id will be set by ActionExecuted handler
-    // We use isConsumed to determine which side of the compliance unit this tag is on
-    let complianceUnit_id: string | undefined;
-    let logicInput_id: string | undefined;
-
-    // Check if tag already exists (created by earlier ResourcePayload event)
-    const existingTag = await context.Tag.get(tagId);
+    const existingTag = existingTags[index];
 
     if (existingTag) {
       // Update existing tag with authoritative isConsumed and index from TransactionExecuted
-      const updatedTag: Tag = {
+      context.Tag.set({
         ...existingTag,
         index: index,
         isConsumed: isConsumed,
         transaction_id: txId,
         logicRef: logicRef || existingTag.logicRef,
-        // Keep existing links if already set
-        logicInput_id: existingTag.logicInput_id || logicInput_id,
-        complianceUnit_id: existingTag.complianceUnit_id || complianceUnit_id,
-      };
-      context.Tag.set(updatedTag);
+        logicInput_id: existingTag.logicInput_id,
+        complianceUnit_id: existingTag.complianceUnit_id,
+      });
     } else {
       // Create new tag (ResourcePayload may not have fired yet or at all)
-      const tagEntity: Tag = {
+      context.Tag.set({
         id: tagId,
         tagHash: tagHash,
         index: index,
         isConsumed: isConsumed,
         blockNumber: event.block.number,
+        timestamp: event.block.timestamp,
         chainId: event.chainId,
         transaction_id: txId,
         logicRef: logicRef || undefined,
-        logicInput_id: logicInput_id,
-        complianceUnit_id: complianceUnit_id,
-      };
-      context.Tag.set(tagEntity);
+        logicInput_id: undefined,
+        complianceUnit_id: undefined,
+      });
     }
   }
 
-  // Track distinct logicRefs
-  const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
+  // Track distinct logicRefs (already batch-fetched above)
   let newLogicCount = 0;
-
-  for (const logicRef of uniqueLogicRefs) {
-    const existing = await context.LogicRef.get(logicRef);
-    if (!existing) {
-      const logicRefEntity: LogicRef = {
-        id: logicRef,
+  for (let i = 0; i < uniqueLogicRefs.length; i++) {
+    if (!existingLogicRefs[i]) {
+      context.LogicRef.set({
+        id: uniqueLogicRefs[i],
         firstSeenBlock: event.block.number,
         firstSeenTimestamp: event.block.timestamp,
         firstSeenChainId: event.chainId,
         firstSeenTxHash: txHash,
-      };
-      context.LogicRef.set(logicRefEntity);
+      });
       newLogicCount++;
     }
   }
@@ -671,23 +596,37 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
   pending.push(actionId);
   pendingActionIds.set(evmTxId, pending);
 
-  // Create ComplianceUnit entities from decoded action
+  // Create ComplianceUnit and LogicInput entities from decoded action
   if (decodedAction) {
+    // Batch-fetch all tags needed for compliance units and logic inputs
+    const cuTagIds = decodedAction.complianceVerifierInputs.flatMap((cu) => [
+      createTagId(event.chainId, cu.instance.consumed.nullifier),
+      createTagId(event.chainId, cu.instance.created.commitment),
+    ]);
+    const liTagIds = decodedAction.logicVerifierInputs.map((li) =>
+      createTagId(event.chainId, li.tag)
+    );
+    const allTagIds = [...cuTagIds, ...liTagIds];
+    const allTags = await Promise.all(allTagIds.map((id) => context.Tag.get(id)));
+
+    // Split results back into compliance unit tags and logic input tags
+    const cuTags = allTags.slice(0, cuTagIds.length);
+    const liTags = allTags.slice(cuTagIds.length);
+
     for (let cuIndex = 0; cuIndex < decodedAction.complianceVerifierInputs.length; cuIndex++) {
       const cu = decodedAction.complianceVerifierInputs[cuIndex];
       const complianceUnitId = createComplianceUnitId(actionId, cuIndex);
 
-      // Find tags by nullifier/commitment
-      const consumedTagId = createTagId(event.chainId, cu.instance.consumed.nullifier);
-      const createdTagId = createTagId(event.chainId, cu.instance.created.commitment);
+      const consumedTagId = cuTagIds[cuIndex * 2];
+      const createdTagId = cuTagIds[cuIndex * 2 + 1];
+      const consumedTag = cuTags[cuIndex * 2];
+      const createdTag = cuTags[cuIndex * 2 + 1];
 
-      // Try to get existing tags to link
-      const consumedTag = await context.Tag.get(consumedTagId);
-      const createdTag = await context.Tag.get(createdTagId);
-
-      const complianceEntity: ComplianceUnit = {
+      context.ComplianceUnit.set({
         id: complianceUnitId,
         index: cuIndex,
+        timestamp: event.block.timestamp,
+        chainId: event.chainId,
         proof: cu.proof || undefined,
         consumedNullifier: cu.instance.consumed.nullifier,
         consumedLogicRef: cu.instance.consumed.logicRef,
@@ -699,26 +638,14 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
         action_id: actionId,
         consumedTag_id: consumedTag ? consumedTagId : undefined,
         createdTag_id: createdTag ? createdTagId : undefined,
-      };
-
-      context.ComplianceUnit.set(complianceEntity);
+      });
 
       // Update tags with compliance unit link if they exist
-      // The isConsumed field on the tag determines which side of the unit it's on
       if (consumedTag) {
-        const updatedTag: Tag = {
-          ...consumedTag,
-          complianceUnit_id: complianceUnitId,
-        };
-        context.Tag.set(updatedTag);
+        context.Tag.set({ ...consumedTag, complianceUnit_id: complianceUnitId });
       }
-
       if (createdTag) {
-        const updatedTag: Tag = {
-          ...createdTag,
-          complianceUnit_id: complianceUnitId,
-        };
-        context.Tag.set(updatedTag);
+        context.Tag.set({ ...createdTag, complianceUnit_id: complianceUnitId });
       }
     }
 
@@ -726,17 +653,15 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     for (let liIndex = 0; liIndex < decodedAction.logicVerifierInputs.length; liIndex++) {
       const li = decodedAction.logicVerifierInputs[liIndex];
       const logicInputId = createLogicInputId(actionId, liIndex);
-
-      // Determine if consumed based on index (even = consumed, odd = created)
       const isConsumed = isConsumedIndex(liIndex);
-
-      // Find tag by tag hash
-      const tagId = createTagId(event.chainId, li.tag);
-      const existingTag = await context.Tag.get(tagId);
+      const tagId = liTagIds[liIndex];
+      const existingTag = liTags[liIndex];
 
       const logicEntity: LogicInput = {
         id: logicInputId,
         index: liIndex,
+        timestamp: event.block.timestamp,
+        chainId: event.chainId,
         tagHash: li.tag,
         verifyingKey: li.verifyingKey,
         isConsumed: isConsumed,
@@ -825,6 +750,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
       index: 0, // Placeholder - will be set by TransactionExecuted
       isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
       blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
       chainId: event.chainId,
       transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
       logicRef: undefined, // Will be set by TransactionExecuted
