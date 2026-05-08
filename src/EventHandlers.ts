@@ -25,6 +25,8 @@ import {
   Payload,
   CommitmentTreeRoot,
   ForwarderCall,
+  OwnershipTransferred,
+  ProtocolAdapterPaused,
   Stats,
   DailyStats,
   handlerContext,
@@ -36,6 +38,9 @@ import {
   ProtocolAdapter_ApplicationPayload_event,
   ProtocolAdapter_CommitmentTreeRootAdded_event,
   ProtocolAdapter_ForwarderCallExecuted_event,
+  ProtocolAdapter_OwnershipTransferred_event,
+  ProtocolAdapter_Paused_event,
+  ProtocolAdapter_Unpaused_event,
 } from "generated";
 
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder";
@@ -84,6 +89,21 @@ type CommitmentTreeRootAddedArgs = {
 
 type ForwarderCallExecutedArgs = {
   event: ProtocolAdapter_ForwarderCallExecuted_event;
+  context: handlerContext;
+};
+
+type OwnershipTransferredArgs = {
+  event: ProtocolAdapter_OwnershipTransferred_event;
+  context: handlerContext;
+};
+
+type PausedArgs = {
+  event: ProtocolAdapter_Paused_event;
+  context: handlerContext;
+};
+
+type UnpausedArgs = {
+  event: ProtocolAdapter_Unpaused_event;
   context: handlerContext;
 };
 
@@ -948,3 +968,61 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
     });
   }
 );
+
+// ============================================
+// OwnershipTransferred Handler
+// ============================================
+
+ProtocolAdapter.OwnershipTransferred.handler(
+  async ({ event, context }: OwnershipTransferredArgs) => {
+    const eventId = createEventId(event);
+
+    const entity: OwnershipTransferred = {
+      id: eventId,
+      previousOwner: event.params.previousOwner,
+      newOwner: event.params.newOwner,
+      blockNumber: event.block.number,
+      txHash: event.transaction.hash,
+      timestamp: event.block.timestamp,
+      chainId: event.chainId,
+    };
+
+    context.OwnershipTransferred.set(entity);
+  }
+);
+
+// ============================================
+// Paused / Unpaused Handlers
+// ============================================
+
+ProtocolAdapter.Paused.handler(async ({ event, context }: PausedArgs) => {
+  const eventId = createEventId(event);
+
+  const entity: ProtocolAdapterPaused = {
+    id: eventId,
+    account: event.params.account,
+    paused: true,
+    blockNumber: event.block.number,
+    txHash: event.transaction.hash,
+    timestamp: event.block.timestamp,
+    chainId: event.chainId,
+  };
+
+  context.ProtocolAdapterPaused.set(entity);
+});
+
+ProtocolAdapter.Unpaused.handler(async ({ event, context }: UnpausedArgs) => {
+  const eventId = createEventId(event);
+
+  const entity: ProtocolAdapterPaused = {
+    id: eventId,
+    account: event.params.account,
+    paused: false,
+    blockNumber: event.block.number,
+    txHash: event.transaction.hash,
+    timestamp: event.block.timestamp,
+    chainId: event.chainId,
+  };
+
+  context.ProtocolAdapterPaused.set(entity);
+});
