@@ -270,3 +270,64 @@ type DailyStats {
   lastUpdatedBlock: Int!
   lastUpdatedTimestamp: Int!
 }
+
+# ChainStats - Per-chain singleton (id: chainId as decimal string, e.g. "1", "8453")
+# Same counter set as Stats; lets clients sum or exclude chains without scanning
+# the underlying tables (Envio's hosted Hasura disables _aggregate root fields).
+type ChainStats {
+  id: ID!
+  chainId: Int! @index
+  transactions: Int!
+  tags: Int!
+  tagsConsumed: Int!
+  tagsCreated: Int!
+  actions: Int!
+  complianceUnits: Int!
+  logicInputs: Int!
+  commitmentRoots: Int!
+  distinctLogics: Int!
+  externalCalls: Int!
+  forwarderCalls: Int!
+  resourcePayloads: Int!
+  discoveryPayloads: Int!
+  applicationPayloads: Int!
+  lastUpdatedBlock: Int!
+  lastUpdatedTimestamp: Int!
+}
+
+# ChainDailyStats - Per-chain per-day (id: "<chainId>-YYYY-MM-DD")
+# Same counter set as DailyStats. Bounded result set (chains × days) makes
+# filtered time-series charts cheap.
+type ChainDailyStats @index(fields: ["chainId", "dayTimestamp"]) {
+  id: ID!
+  chainId: Int! @index
+  date: String! @index   # "YYYY-MM-DD"
+  dayTimestamp: Int! @index
+  transactions: Int!
+  tags: Int!
+  tagsConsumed: Int!
+  tagsCreated: Int!
+  actions: Int!
+  complianceUnits: Int!
+  logicInputs: Int!
+  commitmentRoots: Int!
+  externalCalls: Int!
+  forwarderCalls: Int!
+  resourcePayloads: Int!
+  discoveryPayloads: Int!
+  applicationPayloads: Int!
+  lastUpdatedBlock: Int!
+  lastUpdatedTimestamp: Int!
+}
+
+# ChainLogicRef - Per-chain first-seen tracker for verifyingKeys.
+# id: "<chainId>-<verifyingKey>". Existence of a row means the key has been
+# seen on that chain; absence triggers a ChainStats.distinctLogics increment.
+type ChainLogicRef {
+  id: ID!
+  chainId: Int! @index
+  verifyingKey: String! @index
+  firstSeenBlock: Int!
+  firstSeenTimestamp: Int!
+  firstSeenTxHash: String!
+}
