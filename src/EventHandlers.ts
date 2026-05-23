@@ -26,6 +26,7 @@ import {
   OwnershipTransferred,
   ProtocolAdapterPaused,
   Stats,
+  ChainStats,
   handlerContext,
   ProtocolAdapter_TransactionExecuted_event,
   ProtocolAdapter_ActionExecuted_event,
@@ -263,12 +264,49 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
   };
 }
 
+async function getOrCreateChainStats(
+  context: handlerContext,
+  chainId: number
+): Promise<ChainStats> {
+  const id = String(chainId);
+  const existing = await context.ChainStats.get(id);
+  if (existing) {
+    return existing;
+  }
+  return {
+    id,
+    chainId,
+    transactions: 0,
+    tags: 0,
+    tagsConsumed: 0,
+    tagsCreated: 0,
+    actions: 0,
+    complianceUnits: 0,
+    logicInputs: 0,
+    commitmentRoots: 0,
+    distinctLogics: 0,
+    externalCalls: 0,
+    forwarderCalls: 0,
+    resourcePayloads: 0,
+    discoveryPayloads: 0,
+    applicationPayloads: 0,
+    lastUpdatedBlock: 0,
+    lastUpdatedTimestamp: 0,
+  };
+}
+
 /**
- * Unified helper: increments both global Stats and per-day DailyStats.
- * All handler call sites use this instead of calling incrementStats directly.
+ * Unified helper: increments global Stats + DailyStats + per-chain
+ * ChainStats + ChainDailyStats. All handler call sites use this.
+ *
+ * `distinctLogics` applies to the global Stats; `chainDistinctLogics`
+ * applies to ChainStats (these can differ — a logic seen on two chains
+ * counts once globally but once per chain). DailyStats and
+ * ChainDailyStats do not track distinctLogics.
  */
 async function incrementAllStats(
   context: handlerContext,
+  chainId: number,
   blockNumber: number,
   timestamp: number,
   increments: {
@@ -281,6 +319,7 @@ async function incrementAllStats(
     logicInputs?: number;
     commitmentRoots?: number;
     distinctLogics?: number;
+    chainDistinctLogics?: number;
     externalCalls?: number;
     forwarderCalls?: number;
     resourcePayloads?: number;
@@ -288,14 +327,40 @@ async function incrementAllStats(
     applicationPayloads?: number;
   }
 ): Promise<void> {
-  // Parallel reads for Stats and DailyStats (independent entities)
   const { dateKey, dayTimestamp } = getUTCDay(timestamp);
-  const [stats, daily] = await Promise.all([
+  const chainDateKey = `${chainId}-${dateKey}`;
+
+  const [stats, daily, chainStats, chainDaily] = await Promise.all([
     getOrCreateStats(context),
     context.DailyStats.get(dateKey).then(
       (existing) =>
         existing || {
           id: dateKey,
+          dayTimestamp,
+          transactions: 0,
+          tags: 0,
+          tagsConsumed: 0,
+          tagsCreated: 0,
+          actions: 0,
+          complianceUnits: 0,
+          logicInputs: 0,
+          commitmentRoots: 0,
+          externalCalls: 0,
+          forwarderCalls: 0,
+          resourcePayloads: 0,
+          discoveryPayloads: 0,
+          applicationPayloads: 0,
+          lastUpdatedBlock: 0,
+          lastUpdatedTimestamp: 0,
+        }
+    ),
+    getOrCreateChainStats(context, chainId),
+    context.ChainDailyStats.get(chainDateKey).then(
+      (existing) =>
+        existing || {
+          id: chainDateKey,
+          chainId,
+          date: dateKey,
           dayTimestamp,
           transactions: 0,
           tags: 0,
@@ -351,6 +416,45 @@ async function incrementAllStats(
     resourcePayloads: daily.resourcePayloads + (increments.resourcePayloads || 0),
     discoveryPayloads: daily.discoveryPayloads + (increments.discoveryPayloads || 0),
     applicationPayloads: daily.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
+
+  context.ChainStats.set({
+    ...chainStats,
+    transactions: chainStats.transactions + (increments.transactions || 0),
+    tags: chainStats.tags + (increments.tags || 0),
+    tagsConsumed: chainStats.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: chainStats.tagsCreated + (increments.tagsCreated || 0),
+    actions: chainStats.actions + (increments.actions || 0),
+    complianceUnits: chainStats.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: chainStats.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: chainStats.commitmentRoots + (increments.commitmentRoots || 0),
+    distinctLogics: chainStats.distinctLogics + (increments.chainDistinctLogics || 0),
+    externalCalls: chainStats.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: chainStats.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: chainStats.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: chainStats.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: chainStats.applicationPayloads + (increments.applicationPayloads || 0),
+    lastUpdatedBlock: blockNumber,
+    lastUpdatedTimestamp: timestamp,
+  });
+
+  context.ChainDailyStats.set({
+    ...chainDaily,
+    transactions: chainDaily.transactions + (increments.transactions || 0),
+    tags: chainDaily.tags + (increments.tags || 0),
+    tagsConsumed: chainDaily.tagsConsumed + (increments.tagsConsumed || 0),
+    tagsCreated: chainDaily.tagsCreated + (increments.tagsCreated || 0),
+    actions: chainDaily.actions + (increments.actions || 0),
+    complianceUnits: chainDaily.complianceUnits + (increments.complianceUnits || 0),
+    logicInputs: chainDaily.logicInputs + (increments.logicInputs || 0),
+    commitmentRoots: chainDaily.commitmentRoots + (increments.commitmentRoots || 0),
+    externalCalls: chainDaily.externalCalls + (increments.externalCalls || 0),
+    forwarderCalls: chainDaily.forwarderCalls + (increments.forwarderCalls || 0),
+    resourcePayloads: chainDaily.resourcePayloads + (increments.resourcePayloads || 0),
+    discoveryPayloads: chainDaily.discoveryPayloads + (increments.discoveryPayloads || 0),
+    applicationPayloads: chainDaily.applicationPayloads + (increments.applicationPayloads || 0),
     lastUpdatedBlock: blockNumber,
     lastUpdatedTimestamp: timestamp,
   });
@@ -467,9 +571,11 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   // Batch-fetch all existing tags and logicRefs in parallel (eliminates N+1 reads)
   const tagIds = event.params.tags.map((tagHash) => createTagId(event.chainId, tagHash));
   const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
-  const [existingTags, existingLogicRefs] = await Promise.all([
+  const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
+  const [existingTags, existingLogicRefs, existingChainLogicRefs] = await Promise.all([
     Promise.all(tagIds.map((id) => context.Tag.get(id))),
     Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
+    Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
   ]);
 
   // Update/Create Tag entities for each tag hash
@@ -510,8 +616,9 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
     }
   }
 
-  // Track distinct logicRefs (already batch-fetched above)
+  // Track distinct logicRefs (already batch-fetched above) — global and per-chain
   let newLogicCount = 0;
+  let newChainLogicCount = 0;
   for (let i = 0; i < uniqueLogicRefs.length; i++) {
     if (!existingLogicRefs[i]) {
       context.LogicRef.set({
@@ -523,6 +630,17 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
       });
       newLogicCount++;
     }
+    if (!existingChainLogicRefs[i]) {
+      context.ChainLogicRef.set({
+        id: chainLogicRefIds[i],
+        chainId: event.chainId,
+        verifyingKey: uniqueLogicRefs[i],
+        firstSeenBlock: event.block.number,
+        firstSeenTimestamp: event.block.timestamp,
+        firstSeenTxHash: txHash,
+      });
+      newChainLogicCount++;
+    }
   }
 
   // Update global stats
@@ -530,12 +648,13 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   const consumedCount = Math.floor(totalTags / 2);
   const createdCount = totalTags - consumedCount;
 
-  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
     transactions: 1,
     tags: totalTags,
     tagsConsumed: consumedCount,
     tagsCreated: createdCount,
     distinctLogics: newLogicCount,
+    chainDistinctLogics: newChainLogicCount,
   });
 
   // Clear the cache after processing is complete
@@ -721,14 +840,14 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     }
 
     // Update stats for compliance units and logic inputs from this action
-    await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       actions: 1,
       complianceUnits: decodedAction.complianceVerifierInputs.length,
       logicInputs: decodedAction.logicVerifierInputs.length,
     });
   } else {
     // No decoded action data - just count the action itself
-    await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       actions: 1,
     });
   }
@@ -749,7 +868,7 @@ ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePaylo
   context.Payload.set(payloadEntity);
 
   // Update stats
-  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
     resourcePayloads: 1,
   });
 
@@ -815,7 +934,7 @@ ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPay
   const entity = createPayloadEntity(event, "discovery");
   context.Payload.set(entity);
 
-  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
     discoveryPayloads: 1,
   });
 });
@@ -824,7 +943,7 @@ ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPaylo
   const entity = createPayloadEntity(event, "externalCall");
   context.Payload.set(entity);
 
-  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
     externalCalls: 1,
   });
 });
@@ -833,7 +952,7 @@ ProtocolAdapter.ApplicationPayload.handler(async ({ event, context }: Applicatio
   const entity = createPayloadEntity(event, "application");
   context.Payload.set(entity);
 
-  await incrementAllStats(context, event.block.number, event.block.timestamp, {
+  await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
     applicationPayloads: 1,
   });
 });
@@ -859,7 +978,7 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
     context.CommitmentTreeRoot.set(entity);
 
     // Update stats
-    await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       commitmentRoots: 1,
     });
   }
@@ -886,7 +1005,7 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
 
     context.ForwarderCall.set(entity);
 
-    await incrementAllStats(context, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       forwarderCalls: 1,
     });
   }
