@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Resolve ${VAR:-default} substitutions in every config file at build time.
-# At runtime, CONFIG_FILE env var selects which one Envio loads (default: config.yaml).
+# At runtime, ENVIO_CONFIG env var selects which one Envio loads (default: config.yaml).
 RUN for f in config.yaml config.prod.yaml; do \
       perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' "$f" > "$f.resolved" && mv "$f.resolved" "$f"; \
     done
@@ -21,4 +21,9 @@ RUN pnpm codegen
 
 EXPOSE 9898
 
-CMD ["pnpm", "start"]
+# Re-run codegen at startup so the generated/ code matches whichever
+# config file ENVIO_CONFIG points to (e.g. config.prod.yaml vs the
+# build-time default of config.yaml). Without this, the generated
+# chain/handler scaffolding is locked to config.yaml at build time
+# and ENVIO_CONFIG cannot actually change the indexing scope.
+CMD ["sh", "-c", "pnpm codegen && pnpm start"]
