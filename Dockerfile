@@ -12,7 +12,11 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
+# Resolve ${VAR:-default} substitutions in every config file at build time.
+# At runtime, CONFIG_FILE env var selects which one Envio loads (default: config.yaml).
+RUN for f in config.yaml config.prod.yaml; do \
+      perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' "$f" > "$f.resolved" && mv "$f.resolved" "$f"; \
+    done
 RUN pnpm codegen
 
 EXPOSE 9898

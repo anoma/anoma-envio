@@ -8,10 +8,10 @@
 
 ### Requirements
 
-| Tool   | Version    | Notes                            |
-|--------|------------|----------------------------------|
-| Node.js| `>= 18`   | v20 recommended (used in Docker) |
-| pnpm   | Latest     | Enabled via `corepack enable`    |
+| Tool    | Version | Notes                            |
+| ------- | ------- | -------------------------------- |
+| Node.js | `>= 18` | v20 recommended (used in Docker) |
+| pnpm    | Latest  | Enabled via `corepack enable`    |
 
 ### Build Steps
 
@@ -75,25 +75,31 @@ The indexer is configured through two files and environment variables (see below
 
 Defines which contracts, events, and networks the indexer tracks. This is the source of truth for what gets indexed.
 
-| Field                       | Description                                                        |
-|-----------------------------|--------------------------------------------------------------------|
-| `contracts[].name`          | Contract name (must match ABI)                                     |
-| `contracts[].handler`       | Path to the TypeScript event handler                               |
-| `contracts[].events`        | List of Solidity event signatures to index                         |
-| `networks[].id`             | EVM chain ID                                                       |
-| `networks[].start_block`    | Block to start indexing from                                       |
-| `networks[].contracts[].address` | Contract address on that chain                                |
-| `field_selection`           | Additional EVM transaction fields to capture (hash, from, to, etc) |
-| `unordered_multichain_mode` | Allows parallel block processing across chains                     |
+| Field                            | Description                                                        |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `contracts[].name`               | Contract name (must match ABI)                                     |
+| `contracts[].handler`            | Path to the TypeScript event handler                               |
+| `contracts[].events`             | List of Solidity event signatures to index                         |
+| `networks[].id`                  | EVM chain ID                                                       |
+| `networks[].start_block`         | Block to start indexing from                                       |
+| `networks[].contracts[].address` | Contract address on that chain                                     |
+| `field_selection`                | Additional EVM transaction fields to capture (hash, from, to, etc) |
+| `unordered_multichain_mode`      | Allows parallel block processing across chains                     |
 
 Currently tracked chains and addresses (from [pa-evm](https://github.com/anoma/pa-evm)):
 
 | Chain    | Chain ID | Contract Address                             |
-|----------|----------|----------------------------------------------|
+| -------- | -------- | -------------------------------------------- |
 | Ethereum | 1        | `0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF` |
 | Arbitrum | 42161    | `0x094FCC095323080e71a037b2B1e3519c07dd84F8` |
 | Base     | 8453     | `0x094FCC095323080e71a037b2B1e3519c07dd84F8` |
 | Optimism | 10       | `0x094FCC095323080e71a037b2B1e3519c07dd84F8` |
+
+### `config.prod.yaml`
+
+A narrower production indexing scope: Mainnet + BSC only. Used to keep request volume within Envio's Free tier (500 rpm), which the full dev chain set exceeds. Same contracts, events, and handlers as `config.yaml` — only the `networks` list differs.
+
+Select it at runtime via `CONFIG_FILE=config.prod.yaml`. Both files are templated and shipped in the Docker image; argocd overlays choose which one Envio loads.
 
 ### `schema.graphql`
 
@@ -104,7 +110,7 @@ Defines the GraphQL entities that get stored and queried. Core entities: `EVMTra
 These are configured in `docker-compose.yml` for containerized deployments. When running locally with `pnpm dev`, Envio manages these automatically.
 
 | Variable                      | Required?  | Default                          | Description                                               |
-|-------------------------------|------------|----------------------------------|-----------------------------------------------------------|
+| ----------------------------- | ---------- | -------------------------------- | --------------------------------------------------------- |
 | `ENVIO_API_TOKEN`             | No         | —                                | HyperSync API token                                       |
 | `ENVIO_HASURA`                | Yes        | `true`                           | Enable Hasura GraphQL integration                         |
 | `LOG_LEVEL`                   | No         | `warn`                           | Log verbosity (`trace`, `debug`, `info`, `warn`, `error`) |
@@ -123,14 +129,13 @@ These are configured in `docker-compose.yml` for containerized deployments. When
 | `HASURA_SERVICE_PORT`         | Yes        | `8080`                           | Hasura port                                               |
 | `ENVIO_GRAPHQL_URL`           | Tests only | —                                | GraphQL endpoint URL used by the integration tests        |
 
-
 ## External Dependencies
 
-| Dependency              | Required? | Purpose                                                    | Notes                                                                                   |
-|-------------------------|-----------|------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| **Envio Hyperindex**    | Yes       | Indexer runtime — manages Postgres, block ingestion, and the GraphQL API | Installed as an npm dependency (`envio`). `pnpm dev` handles local setup automatically  |
-| **pa-evm contracts**    | Yes       | The `ProtocolAdapter` contracts this indexer tracks         | Addresses and chain IDs are defined in `config.yaml`                                    |
-| **Docker**              | Yes       | Required by `pnpm dev` — Envio runs Postgres and its runtime in containers | Must be running before starting local development                                       |
+| Dependency           | Required? | Purpose                                                                    | Notes                                                                                  |
+| -------------------- | --------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Envio Hyperindex** | Yes       | Indexer runtime — manages Postgres, block ingestion, and the GraphQL API   | Installed as an npm dependency (`envio`). `pnpm dev` handles local setup automatically |
+| **pa-evm contracts** | Yes       | The `ProtocolAdapter` contracts this indexer tracks                        | Addresses and chain IDs are defined in `config.yaml`                                   |
+| **Docker**           | Yes       | Required by `pnpm dev` — Envio runs Postgres and its runtime in containers | Must be running before starting local development                                      |
 
 ## Troubleshooting Checklist
 
@@ -196,6 +201,7 @@ schema.graphql             # GraphQL entity definitions
 ```
 
 Event processing order within an EVM transaction:
+
 1. Payload events (`ResourcePayload`, `DiscoveryPayload`, `ExternalPayload`, `ApplicationPayload`) create `Tag` and `Payload` entities
 2. `ForwarderCallExecuted` records external call data
 3. `CommitmentTreeRootAdded` stores new roots
