@@ -36,12 +36,6 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  - id: 8453 # Base
-    start_block: 41364871
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
   - id: 56 # BSC
     start_block: 84845926
     contracts:
