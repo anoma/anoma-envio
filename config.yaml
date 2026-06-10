@@ -66,4 +66,10 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0xf152bba809d6cba122579cee997a54b8f3fba417"
+  - id: 143 # Monad
+    start_block: 77753171
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
 unordered_multichain_mode: true

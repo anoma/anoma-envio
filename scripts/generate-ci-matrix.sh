@@ -26,6 +26,7 @@ declare -A ALCHEMY_SLUGS=(
   [8453]="base-mainnet"
   [10]="opt-mainnet"
   [56]="bnb-mainnet"
+  [143]="monad-mainnet"
   [11155111]="eth-sepolia"
   [84532]="base-sepolia"
 )
