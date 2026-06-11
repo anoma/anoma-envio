@@ -14,7 +14,7 @@ const { MockDb, ProtocolAdapter } = TestHelpers;
 
 const STATS_ID = "global";
 const CHAIN_A = 1;
-const CHAIN_B = 8453;
+const CHAIN_B = 42161;
 
 // 2026-05-19 00:00 UTC — picked so all events land in the same UTC day.
 const TIMESTAMP = 1779148800;
