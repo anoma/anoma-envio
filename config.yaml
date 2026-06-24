@@ -48,6 +48,15 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
+  - id: 988 # Stable
+    start_block: 29105471
+    # Stable is not supported by HyperSync, so index via RPC.
+    rpc_config:
+      url: https://rpc.stable.xyz
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
   - id: 4326 # MegaETH
     start_block: 19402510
     # envio 2.x cannot auto-resolve MegaETH's HyperSync endpoint, so set it explicitly.

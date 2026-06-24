@@ -46,7 +46,7 @@ if command -v yq &>/dev/null; then
     if [ -n "$url" ] && [ "$url" != "null" ]; then
       CONFIG_RPCS[$cid]="$url"
     fi
-  done < <(yq -r '.networks[] | "\(.id)=\(.rpc_config.url // "null")"' "$CONFIG")
+  done < <(yq '.networks[] | (.id | tostring) + "=" + (.rpc_config.url // "null")' "$CONFIG")
 fi
 
 ENTRIES=()
