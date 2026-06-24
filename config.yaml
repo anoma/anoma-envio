@@ -57,4 +57,13 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
+  - id: 1313161554 # Aurora
+    start_block: 203917905
+    # envio 2.x cannot auto-resolve Aurora's HyperSync endpoint, so set it explicitly.
+    hypersync_config:
+      url: https://1313161554.hypersync.xyz
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
 unordered_multichain_mode: true
