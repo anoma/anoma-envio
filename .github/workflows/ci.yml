@@ -222,23 +222,32 @@ jobs:
           # Filter to single chain
           yq -i '.networks = [.networks[] | select(.id == ${{ matrix.chain_id }})]' config.yaml
 
-          # Ensure rpc_config is set (HyperSync chains need it for CI docker-compose)
+          # Detect how this chain syncs historical data.
           CONFIG_RPC=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
-          if [ -z "$CONFIG_RPC" ]; then
-            # Construct RPC URL: prefer Alchemy (archive-capable), fall back to matrix.rpc_url
-            if [ -n "${{ matrix.alchemy }}" ] && [ -n "$ALCHEMY_API_KEY" ]; then
-              CONFIG_RPC="https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
-            elif [ -n "${{ matrix.rpc_url }}" ]; then
-              CONFIG_RPC="${{ matrix.rpc_url }}"
-            fi
-            export CONFIG_RPC
-            yq -i '.networks[0].rpc_config.url = env(CONFIG_RPC)' config.yaml
+          HYPERSYNC=$(yq '.networks[0].hypersync_config.url // ""' config.yaml)
+
+          # Pick an archive RPC for tip detection (and, for RPC-sync chains, for
+          # the indexer itself): prefer Alchemy, then the matrix public RPC, then
+          # whatever rpc_config the config already declares.
+          if [ -n "${{ matrix.alchemy }}" ] && [ -n "$ALCHEMY_API_KEY" ]; then
+            RPC_URL="https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+          elif [ -n "${{ matrix.rpc_url }}" ]; then
+            RPC_URL="${{ matrix.rpc_url }}"
+          else
+            RPC_URL="$CONFIG_RPC"
+          fi
+
+          # If the chain syncs via neither rpc_config nor hypersync_config, inject
+          # the RPC as its data source. Skip when hypersync_config is set — Envio
+          # rejects defining both at once (EE106).
+          if [ -z "$CONFIG_RPC" ] && [ -z "$HYPERSYNC" ]; then
+            export RPC_URL
+            yq -i '.networks[0].rpc_config.url = env(RPC_URL)' config.yaml
             # Remove transaction_fields not available via RPC (only via HyperSync)
             yq -i '.field_selection.transaction_fields -= ["gasUsed", "status"]' config.yaml
           fi
 
           # Get chain tip and set start_block near it for fast sync
-          RPC_URL=$(yq '.networks[0].rpc_config.url' config.yaml)
           TIP_HEX=$(curl -sf "$RPC_URL" \
             -H 'Content-Type: application/json' \
             -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
@@ -280,8 +289,10 @@ jobs:
       - name: Run integration tests
         run: |
           export ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
-          # Set RPC env var for parity test
+          # Set RPC env var for parity test. HyperSync chains have no rpc_config,
+          # so fall back to the matrix RPC.
           RPC_URL=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
+          [ -z "$RPC_URL" ] && RPC_URL="${{ matrix.rpc_url }}"
           if [ -n "$RPC_URL" ]; then
             export "RPC_${{ matrix.rpc_key }}=$RPC_URL"
           fi

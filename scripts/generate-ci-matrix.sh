@@ -31,6 +31,13 @@ declare -A ALCHEMY_SLUGS=(
   [84532]="base-sepolia"
 )
 
+# Public archive RPCs for HyperSync chains that Alchemy does not cover.
+# These chains index via HyperSync (no rpc_config in config.yaml), but CI still
+# needs an archive RPC for start_block validation and integration tip detection.
+declare -A PUBLIC_RPCS=(
+  [4326]="https://mainnet.megaeth.com/rpc"
+)
+
 # Extract rpc_config URLs from config.yaml using yq (if available)
 declare -A CONFIG_RPCS
 if command -v yq &>/dev/null; then
@@ -52,8 +59,8 @@ while IFS= read -r line; do
     # RPC env key: uppercase, non-alphanumeric -> underscore (matches test/chain-utils.ts)
     RPC_KEY=$(echo "$RAW_NAME" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g')
 
-    # Determine RPC URL: from config.yaml rpc_config first
-    RPC_URL="${CONFIG_RPCS[$CHAIN_ID]:-}"
+    # Determine RPC URL: config.yaml rpc_config first, then a public archive RPC
+    RPC_URL="${CONFIG_RPCS[$CHAIN_ID]:-${PUBLIC_RPCS[$CHAIN_ID]:-}}"
 
     ENTRY="{\"chain_id\":$CHAIN_ID,\"name\":\"$DISPLAY_NAME\",\"rpc_key\":\"$RPC_KEY\""
     if [ -n "$RPC_URL" ]; then
