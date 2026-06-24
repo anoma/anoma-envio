@@ -22,7 +22,7 @@ field_selection:
     - "to"
     - "value"
     - "input"
-# Production indexing scope: Mainnet + Arbitrum + BSC + Monad + MegaETH.
+# Production indexing scope: Mainnet + Arbitrum + BSC + Monad + MegaETH + Aurora.
 # Other chains (Base, Optimism, Base Sepolia, eth-sepolia) are
 # excluded here to keep request volume within Envio's Free tier (500 rpm).
 # Dev (config.yaml) continues to index the full chain set.
@@ -57,6 +57,15 @@ networks:
     # envio 2.x cannot auto-resolve MegaETH's HyperSync endpoint, so set it explicitly.
     hypersync_config:
       url: https://4326.hypersync.xyz
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
+  - id: 1313161554 # Aurora
+    start_block: 203917905
+    # envio 2.x cannot auto-resolve Aurora's HyperSync endpoint, so set it explicitly.
+    hypersync_config:
+      url: https://1313161554.hypersync.xyz
     contracts:
       - name: ProtocolAdapter
         address:

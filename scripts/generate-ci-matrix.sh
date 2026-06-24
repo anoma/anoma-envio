@@ -36,6 +36,7 @@ declare -A ALCHEMY_SLUGS=(
 # needs an archive RPC for start_block validation and integration tip detection.
 declare -A PUBLIC_RPCS=(
   [4326]="https://mainnet.megaeth.com/rpc"
+  [1313161554]="https://mainnet.aurora.dev"
 )
 
 # Extract rpc_config URLs from config.yaml using yq (if available)
