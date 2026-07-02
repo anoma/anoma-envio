@@ -957,6 +957,7 @@ indexer.onEvent(
 
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "OwnershipTransferred" },
+  // eslint-disable-next-line @typescript-eslint/require-await -- onEvent handlers are typed => Promise<void>; this one does only sync entity writes
   async ({ event, context }) => {
     const eventId = createEventId(event);
 
@@ -978,6 +979,7 @@ indexer.onEvent(
 // Paused / Unpaused Handlers
 // ============================================
 
+// eslint-disable-next-line @typescript-eslint/require-await -- onEvent handlers are typed => Promise<void>; this one does only sync entity writes
 indexer.onEvent({ contract: "ProtocolAdapter", event: "Paused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
 
@@ -994,6 +996,7 @@ indexer.onEvent({ contract: "ProtocolAdapter", event: "Paused" }, async ({ event
   context.ProtocolAdapterPaused.set(entity);
 });
 
+// eslint-disable-next-line @typescript-eslint/require-await -- onEvent handlers are typed => Promise<void>; this one does only sync entity writes
 indexer.onEvent({ contract: "ProtocolAdapter", event: "Unpaused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
 
