@@ -13,8 +13,8 @@
  * Requires ENVIO_GRAPHQL_URL to be set. Skips otherwise.
  */
 
-import { expect } from "chai";
-import { parseConfig, chainName, getRpcUrl, rpcCall, type NetworkConfig } from "./chain-utils";
+import { describe, it, expect } from "vitest";
+import { parseConfig, chainName, getRpcUrl, rpcCall, type NetworkConfig } from "./chain-utils.js";
 
 // TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
 const TX_EXECUTED_TOPIC = "0x10dd528db2c49add6545679b976df90d24c035d6a75b17f41b700e8c18ca5364";
@@ -94,32 +94,21 @@ async function getLatestIndexerTx(chainId: number): Promise<IndexerTransaction |
   return data.Transaction.length > 0 ? data.Transaction[0] : null;
 }
 
-describe("Parity Check: Indexer vs RPC", function () {
-  this.timeout(120_000); // RPC calls can be slow
+// Resolve networks at module load time for dynamic test generation.
+// If GRAPHQL_URL is not set the describe.skipIf gate prevents execution.
+const networkConfigs = (() => {
+  try {
+    return parseConfig();
+  } catch {
+    return [] as NetworkConfig[];
+  }
+})();
 
-  let networks: NetworkConfig[];
-
-  before(function () {
-    if (!GRAPHQL_URL) {
-      console.log("  ENVIO_GRAPHQL_URL not set — skipping parity checks");
-      this.skip();
-    }
-    networks = parseConfig();
+describe.skipIf(!GRAPHQL_URL)("Parity Check: Indexer vs RPC", () => {
+  it("should have networks loaded from config", () => {
+    expect(networkConfigs.length).toBeGreaterThan(0);
+    console.log(`\n  Loaded ${networkConfigs.length} networks from config.yaml`);
   });
-
-  it("should have networks loaded from config", function () {
-    expect(networks).to.be.an("array").with.length.greaterThan(0);
-    console.log(`\n  Loaded ${networks.length} networks from config.yaml`);
-  });
-
-  // Dynamically create a test per chain from config.yaml
-  const networkConfigs = (() => {
-    try {
-      return parseConfig();
-    } catch {
-      return [];
-    }
-  })();
 
   for (const network of networkConfigs) {
     const name = chainName(network.id);
@@ -127,24 +116,16 @@ describe("Parity Check: Indexer vs RPC", function () {
     const contractAddress = network.contracts[0]?.address[0];
 
     if (!rpcUrl) {
-      it(`[${name}] (chain ${network.id}) — skipped: no RPC URL`, function () {
-        this.skip();
-      });
+      it.skip(`[${name}] (chain ${network.id}) — skipped: no RPC URL`, () => {});
       continue;
     }
 
     if (!contractAddress) {
-      it(`[${name}] (chain ${network.id}) — skipped: no contract address`, function () {
-        this.skip();
-      });
+      it.skip(`[${name}] (chain ${network.id}) — skipped: no contract address`, () => {});
       continue;
     }
 
-    it(`[${name}] (chain ${network.id}) — latest TX matches RPC`, async function () {
-      if (!GRAPHQL_URL) {
-        this.skip();
-      }
-
+    it(`[${name}] (chain ${network.id}) — latest TX matches RPC`, async (ctx) => {
       try {
         // Get the indexer's latest tx, then verify it on-chain.
         // This approach uses only 1-2 RPC calls (works with free-tier RPCs).
@@ -167,11 +148,10 @@ describe("Parity Check: Indexer vs RPC", function () {
         );
 
         // The indexer's latest tx must look valid
-        expect(idxTxHash)
-          .to.be.a("string")
-          .and.match(/^0x[0-9a-fA-F]{64}$/);
-        expect(idxBlock).to.be.a("number").and.greaterThan(0);
-        expect(idxLogIndex).to.be.a("number").and.at.least(0);
+        expect(idxTxHash).toMatch(/^0x[0-9a-fA-F]{64}$/);
+        expect(typeof idxBlock).toBe("number");
+        expect(idxBlock).toBeGreaterThan(0);
+        expect(idxLogIndex).toBeGreaterThanOrEqual(0);
 
         // Verify the indexer's latest tx exists on-chain
         const rpcLogs = await getRpcLogsForBlock(rpcUrl, contractAddress, idxBlock);
@@ -182,11 +162,8 @@ describe("Parity Check: Indexer vs RPC", function () {
         expect(
           matchingLog,
           `${name}: indexer tx ${idxTxHash} not found on-chain at block ${idxBlock}`
-        ).to.not.be.undefined;
-        expect(parseInt(matchingLog!.logIndex, 16)).to.equal(
-          idxLogIndex,
-          `${name}: logIndex mismatch at block ${idxBlock}`
-        );
+        ).toBeDefined();
+        expect(parseInt(matchingLog!.logIndex, 16)).toBe(idxLogIndex);
 
         const blockDiff = chainTip - idxBlock;
         if (blockDiff > 0) {
@@ -201,7 +178,8 @@ describe("Parity Check: Indexer vs RPC", function () {
         const code = (err as { code?: number }).code;
         if (code === 429 || /rate limit|compute units|empty response/i.test(msg)) {
           console.log(`    ${name}: skipping — ${msg}`);
-          this.skip();
+          ctx.skip();
+          return;
         }
         throw err;
       }
