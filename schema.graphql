@@ -85,6 +85,10 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   chainId: Int! @index
   timestamp: Int! @index
 
+  # Stable EVM-tx correlation key ({chainId}_{txHash}); lets TransactionExecuted
+  # locate this action without cross-event module state.
+  evmTxId: String! @index
+
   # Relationships
   transaction: Transaction! @index
   complianceUnits: [ComplianceUnit!]! @derivedFrom(field: "action")

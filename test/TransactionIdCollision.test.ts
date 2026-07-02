@@ -116,4 +116,133 @@ describe("Transaction ID Collision", () => {
     expect(stats!.transactions).to.equal(2);
     expect(stats!.tags).to.equal(4);
   });
+
+  // ─── Action↔Transaction linkage via evmTxId (Task 1) ───────────────────────
+
+  describe("Action linkage via evmTxId (preload-safe, no pending Map)", () => {
+    const ACTION_ROOT_1 = "0x" + "a1".repeat(32);
+    const ACTION_ROOT_2 = "0x" + "a2".repeat(32);
+
+    /**
+     * Simulates a multicall EVM tx with two execute() calls:
+     *   ActionExecuted(action1) → TransactionExecuted(logIndex 10)
+     *   ActionExecuted(action2) → TransactionExecuted(logIndex 20)
+     *
+     * Both ActionExecuted events share TX_HASH so evmTxId is the same.
+     * The guard on transaction_id === evmTxId ensures each TransactionExecuted
+     * only claims its own unlinked actions.
+     */
+    async function processTwoExecuteCallsWithActions() {
+      let db = MockDb.createMockDb();
+
+      // First execute(): ActionExecuted then TransactionExecuted
+      const actionEvent1 = ProtocolAdapter.ActionExecuted.createMockEvent({
+        actionTreeRoot: ACTION_ROOT_1,
+        actionTagCount: BigInt(0),
+        mockEventData: {
+          chainId: CHAIN,
+          srcAddress: CONTRACT,
+          logIndex: 5,
+          block: { number: BLOCK, timestamp: TIMESTAMP },
+          transaction: { hash: TX_HASH },
+        },
+      });
+      db = await ProtocolAdapter.ActionExecuted.processEvent({
+        event: actionEvent1,
+        mockDb: db,
+      });
+
+      const txEvent1 = ProtocolAdapter.TransactionExecuted.createMockEvent({
+        tags: tags1,
+        logicRefs: logicRefs1,
+        mockEventData: {
+          chainId: CHAIN,
+          srcAddress: CONTRACT,
+          logIndex: 10,
+          block: { number: BLOCK, timestamp: TIMESTAMP },
+          transaction: { hash: TX_HASH },
+        },
+      });
+      db = await ProtocolAdapter.TransactionExecuted.processEvent({
+        event: txEvent1,
+        mockDb: db,
+      });
+
+      // Second execute(): ActionExecuted then TransactionExecuted
+      const actionEvent2 = ProtocolAdapter.ActionExecuted.createMockEvent({
+        actionTreeRoot: ACTION_ROOT_2,
+        actionTagCount: BigInt(0),
+        mockEventData: {
+          chainId: CHAIN,
+          srcAddress: CONTRACT,
+          logIndex: 15,
+          block: { number: BLOCK, timestamp: TIMESTAMP },
+          transaction: { hash: TX_HASH },
+        },
+      });
+      db = await ProtocolAdapter.ActionExecuted.processEvent({
+        event: actionEvent2,
+        mockDb: db,
+      });
+
+      const txEvent2 = ProtocolAdapter.TransactionExecuted.createMockEvent({
+        tags: tags2,
+        logicRefs: logicRefs2,
+        mockEventData: {
+          chainId: CHAIN,
+          srcAddress: CONTRACT,
+          logIndex: 20,
+          block: { number: BLOCK, timestamp: TIMESTAMP },
+          transaction: { hash: TX_HASH },
+        },
+      });
+      db = await ProtocolAdapter.TransactionExecuted.processEvent({
+        event: txEvent2,
+        mockDb: db,
+      });
+
+      return db;
+    }
+
+    it("should link each Action to its own TransactionExecuted (not the other)", async () => {
+      const db = await processTwoExecuteCallsWithActions();
+
+      const evmTxId = `${CHAIN}_${TX_HASH}`;
+      const txId1 = `${CHAIN}_${TX_HASH}_10`;
+      const txId2 = `${CHAIN}_${TX_HASH}_20`;
+
+      const allActions = db.entities.Action.getAll();
+      expect(allActions).to.have.length(2);
+
+      const action1 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_1);
+      const action2 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_2);
+
+      expect(action1, "action1 should exist").to.not.be.undefined;
+      expect(action2, "action2 should exist").to.not.be.undefined;
+
+      // Each action's evmTxId must be set (new field added in Task 1)
+      expect(action1!.evmTxId).to.equal(evmTxId, "action1.evmTxId should match the EVM tx");
+      expect(action2!.evmTxId).to.equal(evmTxId, "action2.evmTxId should match the EVM tx");
+
+      // Each action must be linked to its own Transaction, not the other's
+      expect(action1!.transaction_id).to.equal(
+        txId1,
+        "action1 should be linked to the first TransactionExecuted (logIndex 10)"
+      );
+      expect(action2!.transaction_id).to.equal(
+        txId2,
+        "action2 should be linked to the second TransactionExecuted (logIndex 20)"
+      );
+
+      // Sanity: neither action should still be using the temporary evmTxId
+      expect(action1!.transaction_id).to.not.equal(
+        evmTxId,
+        "action1 must not retain the temporary evmTxId"
+      );
+      expect(action2!.transaction_id).to.not.equal(
+        evmTxId,
+        "action2 must not retain the temporary evmTxId"
+      );
+    });
+  });
 });

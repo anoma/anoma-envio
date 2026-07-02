@@ -228,7 +228,10 @@ function clearDecodedCache(txHash: string): void {
 // TransactionExecuted handler can retroactively update their transaction_id
 // from the temporary evmTxId to the unique txId (which includes logIndex).
 // Keyed by evmTxId; consumed and cleared on each TransactionExecuted.
-const pendingActionIds = new BoundedCache<string, string[]>(DECODED_CALLDATA_CACHE_MAX_SIZE);
+//
+// Uses Set<string> (not string[]) so that a preload double-run of ActionExecuted
+// for the same action does not produce duplicate IDs in the pending list.
+const pendingActionIds = new BoundedCache<string, Set<string>>(DECODED_CALLDATA_CACHE_MAX_SIZE);
 
 // ============================================
 // Stats Singleton
@@ -514,11 +517,13 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
   context.Transaction.set(txEntity);
 
   // Retroactively update Actions created by earlier ActionExecuted events
-  // so their transaction_id points to this Transaction (not the temporary evmTxId)
-  const actionIds = pendingActionIds.get(evmTxId) || [];
+  // so their transaction_id points to this Transaction (not the temporary evmTxId).
+  // The guard (action.transaction_id === evmTxId) ensures that if the preload pass runs
+  // this handler twice, already-linked actions are not re-linked to the wrong txId.
+  const actionIds = [...(pendingActionIds.get(evmTxId) ?? new Set<string>())];
   const actions = await Promise.all(actionIds.map((id) => context.Action.get(id)));
   for (const action of actions) {
-    if (action) {
+    if (action && action.transaction_id === evmTxId) {
       context.Action.set({ ...action, transaction_id: txId });
     }
   }
@@ -722,14 +727,16 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
     blockNumber: event.block.number,
     chainId: event.chainId,
     timestamp: event.block.timestamp,
+    evmTxId: evmTxId,
     transaction_id: evmTxId,
   };
 
   context.Action.set(actionEntity);
 
-  // Track this action for retroactive transaction_id update by TransactionExecuted
-  const pending = pendingActionIds.get(evmTxId) || [];
-  pending.push(actionId);
+  // Register this action for retroactive transaction_id update by TransactionExecuted.
+  // Set<string> deduplicates in case a preload double-run re-fires ActionExecuted.
+  const pending = pendingActionIds.get(evmTxId) ?? new Set<string>();
+  pending.add(actionId);
   pendingActionIds.set(evmTxId, pending);
 
   // Create ComplianceUnit and LogicInput entities from decoded action
