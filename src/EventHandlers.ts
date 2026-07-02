@@ -160,9 +160,13 @@ function clearDecodedCache(txHash: string): void {
 // from the temporary evmTxId to the unique txId (which includes logIndex).
 // Keyed by evmTxId; consumed and cleared on each TransactionExecuted.
 //
-// Uses Set<string> (not string[]) so that a preload double-run of ActionExecuted
-// for the same action does not produce duplicate IDs in the pending list.
-const pendingActionIds = new BoundedCache<string, Set<string>>(DECODED_CALLDATA_CACHE_MAX_SIZE);
+// Stores a Map<actionId, arrivalIndex> per EVM tx so that (a) a preload double-run of
+// ActionExecuted for the same action reuses the same key (idempotent), and (b) the k-th
+// distinct ActionExecuted maps to decoded.actions[k] — the contract emits ActionExecuted
+// once per action in calldata order, so arrival order equals decoded-action order.
+const pendingActionIds = new BoundedCache<string, Map<string, number>>(
+  DECODED_CALLDATA_CACHE_MAX_SIZE
+);
 
 // ============================================
 // Stats Singleton
@@ -447,7 +451,7 @@ indexer.onEvent(
     // so their transaction_id points to this Transaction (not the temporary evmTxId).
     // The guard (action.transaction_id === evmTxId) ensures that if the preload pass runs
     // this handler twice, already-linked actions are not re-linked to the wrong txId.
-    const actionIds = [...(pendingActionIds.get(evmTxId) ?? new Set<string>())];
+    const actionIds = [...(pendingActionIds.get(evmTxId) ?? new Map<string, number>()).keys()];
     const actions = await Promise.all(actionIds.map((id) => context.Action.get(id)));
     for (const action of actions) {
       if (action && action.transaction_id === evmTxId) {
@@ -611,41 +615,23 @@ indexer.onEvent(
     // Try to decode calldata to get action details
     const decoded = getDecodedTransaction(txHash, event.transaction.input);
 
-    // Find which action index this is by matching actionTreeRoot
-    // For now, we'll try to match by index since we process actions in order
-    let actionIndex = 0;
-    let decodedAction: DecodedAction | null = null;
-
-    if (decoded) {
-      // Try to find the action by comparing actionTreeRoot
-      // The actionTreeRoot is computed from the action data
-      // Since we can't easily compute it here, we'll use the order of ActionExecuted events
-      // by tracking how many we've seen for this transaction
-
-      // Simple approach: assume actions are processed in order
-      // Count existing actions for this transaction
-      // Note: This is a limitation - we're assuming sequential processing
-      // A more robust solution would compute the actionTreeRoot from decoded data
-
-      // For now, we'll iterate and pick the first action that hasn't been assigned
-      // Since ActionExecuted events come in order, this should work
-      for (let i = 0; i < decoded.actions.length; i++) {
-        const potentialAction = decoded.actions[i];
-        // Check if this action's tag count matches
-        if (potentialAction.logicVerifierInputs.length === Number(event.params.actionTagCount)) {
-          // Likely match - use this action
-          decodedAction = potentialAction;
-          actionIndex = i;
-          break;
-        }
-      }
-
-      // If no match by tag count, just use index 0 (fallback)
-      if (!decodedAction && decoded.actions.length > 0) {
-        decodedAction = decoded.actions[0];
-        actionIndex = 0;
-      }
+    // Map this ActionExecuted to its position among the EVM tx's actions. The contract
+    // emits ActionExecuted once per action in calldata order, so the k-th distinct
+    // ActionExecuted corresponds to decoded.actions[k]. The index is memoised per actionId
+    // so a preload double-run is idempotent, and TransactionExecuted still links every
+    // action by iterating the map's keys.
+    const seenActions = pendingActionIds.get(evmTxId) ?? new Map<string, number>();
+    let actionIndex = seenActions.get(actionId);
+    if (actionIndex === undefined) {
+      actionIndex = seenActions.size;
+      seenActions.set(actionId, actionIndex);
+      pendingActionIds.set(evmTxId, seenActions);
     }
+
+    // Select this action's decoded data by position. (The previous tag-count match
+    // mis-assigned data whenever two actions in one tx shared the same tag count.)
+    const decodedAction: DecodedAction | null =
+      decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
 
     // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
     const actionEntity: Action = {
@@ -661,12 +647,6 @@ indexer.onEvent(
     };
 
     context.Action.set(actionEntity);
-
-    // Register this action for retroactive transaction_id update by TransactionExecuted.
-    // Set<string> deduplicates in case a preload double-run re-fires ActionExecuted.
-    const pending = pendingActionIds.get(evmTxId) ?? new Set<string>();
-    pending.add(actionId);
-    pendingActionIds.set(evmTxId, pending);
 
     // Create ComplianceUnit and LogicInput entities from decoded action
     if (decodedAction) {
@@ -721,11 +701,20 @@ indexer.onEvent(
         }
       }
 
+      // Consumed vs created is authoritative from the compliance units' nullifier set —
+      // logicVerifierInputs are looked up by tag on-chain and are not guaranteed to be in
+      // interleaved consumed/created order, so position parity (isConsumedIndex) is unreliable.
+      const consumedNullifiers = new Set(
+        decodedAction.complianceVerifierInputs.map((cu) =>
+          cu.instance.consumed.nullifier.toLowerCase()
+        )
+      );
+
       // Create LogicInput entities from decoded action
       for (let liIndex = 0; liIndex < decodedAction.logicVerifierInputs.length; liIndex++) {
         const li = decodedAction.logicVerifierInputs[liIndex];
         const logicInputId = createLogicInputId(actionId, liIndex);
-        const isConsumed = isConsumedIndex(liIndex);
+        const isConsumed = consumedNullifiers.has(li.tag.toLowerCase());
         const tagId = liTagIds[liIndex];
         const existingTag = liTags[liIndex];
 
