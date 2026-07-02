@@ -129,7 +129,7 @@ describe("CommitmentTreeRoot Ordering", () => {
 
       // Sort by (blockNumber, logIndex) — simulates the fixed GraphQL query
       const sorted = [...allRoots].sort(
-        (a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex
+        (a, b) => Number(a.blockNumber) - Number(b.blockNumber) || a.logIndex - b.logIndex
       );
 
       // Should recover the correct EVM order regardless of insertion order

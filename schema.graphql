@@ -29,9 +29,9 @@ enum PayloadCategory {
 type EVMTransaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!  # Format: {chainId}_{txHash}
   txHash: String!
-  blockNumber: Int! @index
-  timestamp: Int! @index
-  chainId: Int! @index
+  blockNumber: BigInt! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 
   # EVM transaction metadata
   from: String
@@ -54,9 +54,9 @@ type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["cha
 
   # Denormalized from EVMTransaction for efficient sorting/filtering
   # (eliminates cross-table JOIN for ORDER BY blockNumber/timestamp)
-  blockNumber: Int! @index
-  timestamp: Int! @index
-  chainId: Int! @index
+  blockNumber: BigInt! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 
   # From TransactionExecuted event
   tagHashes: [String!]!
@@ -81,9 +81,9 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   index: Int!
   actionTreeRoot: String!
   actionTagCount: Int!
-  blockNumber: Int! @index
-  chainId: Int! @index
-  timestamp: Int! @index
+  blockNumber: BigInt! @index
+  chainId: BigInt! @index
+  timestamp: BigInt! @index
 
   # Stable EVM-tx correlation key ({chainId}_{txHash}); lets TransactionExecuted
   # locate this action without cross-event module state.
@@ -100,8 +100,8 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
 type ComplianceUnit @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
-  timestamp: Int! @index
-  chainId: Int! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 
   # Proof
   proof: String
@@ -131,8 +131,8 @@ type ComplianceUnit @index(fields: ["chainId", "timestamp"]) {
 type LogicInput @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int!
-  timestamp: Int! @index
-  chainId: Int! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 
   tagHash: String!
   verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
@@ -156,9 +156,9 @@ type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "
   tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
   index: Int! # Position in TransactionExecuted.tags array
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
-  blockNumber: Int! @index
-  timestamp: Int! @index
-  chainId: Int! @index
+  blockNumber: BigInt! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 
   # Logic reference from TransactionExecuted.logicRefs
   logicRef: String
@@ -194,11 +194,11 @@ type Payload {
 type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) @index(fields: ["chainId", "blockNumber", "logIndex"]) {
   id: ID!
   root: String!
-  blockNumber: Int! @index
+  blockNumber: BigInt! @index
   logIndex: Int!  # EVM log index — tiebreaker for ordering within a block
   txHash: String!
-  timestamp: Int! @index
-  chainId: Int! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 }
 
 # ForwarderCall - Meta-transaction execution via untrusted forwarder
@@ -207,10 +207,10 @@ type ForwarderCall @index(fields: ["chainId", "blockNumber"]) {
   untrustedForwarder: String!
   input: String!
   output: String!
-  blockNumber: Int! @index
+  blockNumber: BigInt! @index
   txHash: String!
-  timestamp: Int! @index
-  chainId: Int! @index
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
 }
 
 # OwnershipTransferred - OZ Ownable ownership transfer event
@@ -218,10 +218,10 @@ type OwnershipTransferred {
   id: ID!
   previousOwner: String!
   newOwner: String!
-  blockNumber: Int!
+  blockNumber: BigInt!
   txHash: String!
-  timestamp: Int!
-  chainId: Int!
+  timestamp: BigInt!
+  chainId: BigInt!
 }
 
 # ProtocolAdapterPaused - OZ Pausable pause/unpause event
@@ -230,10 +230,10 @@ type ProtocolAdapterPaused {
   id: ID!
   account: String!
   paused: Boolean!
-  blockNumber: Int!
+  blockNumber: BigInt!
   txHash: String!
-  timestamp: Int!
-  chainId: Int!
+  timestamp: BigInt!
+  chainId: BigInt!
 }
 
 # ============================================
@@ -244,9 +244,9 @@ type ProtocolAdapterPaused {
 # Used to compute the distinctLogics counter in Stats.
 type LogicRef {
   id: ID!  # The logicRef hex value (bytes32)
-  firstSeenBlock: Int!
-  firstSeenTimestamp: Int!
-  firstSeenChainId: Int!
+  firstSeenBlock: BigInt!
+  firstSeenTimestamp: BigInt!
+  firstSeenChainId: BigInt!
   firstSeenTxHash: String!
 }
 
@@ -258,44 +258,44 @@ type LogicRef {
 # Counters are incremented by event handlers for accurate totals.
 type Stats {
   id: ID!  # Always "global" - singleton pattern
-  transactions: Int!
-  tags: Int!
-  tagsConsumed: Int!
-  tagsCreated: Int!
-  actions: Int!
-  complianceUnits: Int!
-  logicInputs: Int!
-  commitmentRoots: Int!
-  distinctLogics: Int!
-  externalCalls: Int!
-  forwarderCalls: Int!
-  resourcePayloads: Int!
-  discoveryPayloads: Int!
-  applicationPayloads: Int!
-  lastUpdatedBlock: Int!
-  lastUpdatedTimestamp: Int!
+  transactions: BigInt!
+  tags: BigInt!
+  tagsConsumed: BigInt!
+  tagsCreated: BigInt!
+  actions: BigInt!
+  complianceUnits: BigInt!
+  logicInputs: BigInt!
+  commitmentRoots: BigInt!
+  distinctLogics: BigInt!
+  externalCalls: BigInt!
+  forwarderCalls: BigInt!
+  resourcePayloads: BigInt!
+  discoveryPayloads: BigInt!
+  applicationPayloads: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }
 
 # DailyStats - Per-day statistics for time-series charts (id: "YYYY-MM-DD")
 # Same counters as Stats (except distinctLogics) bucketed by UTC day.
 type DailyStats {
   id: ID!               # "YYYY-MM-DD" — sortable, deterministic
-  dayTimestamp: Int!     # Start-of-day Unix timestamp (midnight UTC)
-  transactions: Int!
-  tags: Int!
-  tagsConsumed: Int!
-  tagsCreated: Int!
-  actions: Int!
-  complianceUnits: Int!
-  logicInputs: Int!
-  commitmentRoots: Int!
-  externalCalls: Int!
-  forwarderCalls: Int!
-  resourcePayloads: Int!
-  discoveryPayloads: Int!
-  applicationPayloads: Int!
-  lastUpdatedBlock: Int!
-  lastUpdatedTimestamp: Int!
+  dayTimestamp: BigInt!  # Start-of-day Unix timestamp (midnight UTC)
+  transactions: BigInt!
+  tags: BigInt!
+  tagsConsumed: BigInt!
+  tagsCreated: BigInt!
+  actions: BigInt!
+  complianceUnits: BigInt!
+  logicInputs: BigInt!
+  commitmentRoots: BigInt!
+  externalCalls: BigInt!
+  forwarderCalls: BigInt!
+  resourcePayloads: BigInt!
+  discoveryPayloads: BigInt!
+  applicationPayloads: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }
 
 # ChainStats - Per-chain singleton (id: chainId as decimal string, e.g. "1", "8453")
@@ -303,23 +303,23 @@ type DailyStats {
 # the underlying tables (Envio's hosted Hasura disables _aggregate root fields).
 type ChainStats {
   id: ID!
-  chainId: Int! @index
-  transactions: Int!
-  tags: Int!
-  tagsConsumed: Int!
-  tagsCreated: Int!
-  actions: Int!
-  complianceUnits: Int!
-  logicInputs: Int!
-  commitmentRoots: Int!
-  distinctLogics: Int!
-  externalCalls: Int!
-  forwarderCalls: Int!
-  resourcePayloads: Int!
-  discoveryPayloads: Int!
-  applicationPayloads: Int!
-  lastUpdatedBlock: Int!
-  lastUpdatedTimestamp: Int!
+  chainId: BigInt! @index
+  transactions: BigInt!
+  tags: BigInt!
+  tagsConsumed: BigInt!
+  tagsCreated: BigInt!
+  actions: BigInt!
+  complianceUnits: BigInt!
+  logicInputs: BigInt!
+  commitmentRoots: BigInt!
+  distinctLogics: BigInt!
+  externalCalls: BigInt!
+  forwarderCalls: BigInt!
+  resourcePayloads: BigInt!
+  discoveryPayloads: BigInt!
+  applicationPayloads: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }
 
 # ChainDailyStats - Per-chain per-day (id: "<chainId>-YYYY-MM-DD")
@@ -327,24 +327,24 @@ type ChainStats {
 # filtered time-series charts cheap.
 type ChainDailyStats @index(fields: ["chainId", "dayTimestamp"]) {
   id: ID!
-  chainId: Int! @index
+  chainId: BigInt! @index
   date: String! @index   # "YYYY-MM-DD"
-  dayTimestamp: Int! @index
-  transactions: Int!
-  tags: Int!
-  tagsConsumed: Int!
-  tagsCreated: Int!
-  actions: Int!
-  complianceUnits: Int!
-  logicInputs: Int!
-  commitmentRoots: Int!
-  externalCalls: Int!
-  forwarderCalls: Int!
-  resourcePayloads: Int!
-  discoveryPayloads: Int!
-  applicationPayloads: Int!
-  lastUpdatedBlock: Int!
-  lastUpdatedTimestamp: Int!
+  dayTimestamp: BigInt! @index
+  transactions: BigInt!
+  tags: BigInt!
+  tagsConsumed: BigInt!
+  tagsCreated: BigInt!
+  actions: BigInt!
+  complianceUnits: BigInt!
+  logicInputs: BigInt!
+  commitmentRoots: BigInt!
+  externalCalls: BigInt!
+  forwarderCalls: BigInt!
+  resourcePayloads: BigInt!
+  discoveryPayloads: BigInt!
+  applicationPayloads: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }
 
 # ChainLogicRef - Per-chain first-seen tracker for verifyingKeys.
@@ -352,9 +352,9 @@ type ChainDailyStats @index(fields: ["chainId", "dayTimestamp"]) {
 # seen on that chain; absence triggers a ChainStats.distinctLogics increment.
 type ChainLogicRef {
   id: ID!
-  chainId: Int! @index
+  chainId: BigInt! @index
   verifyingKey: String! @index
-  firstSeenBlock: Int!
-  firstSeenTimestamp: Int!
+  firstSeenBlock: BigInt!
+  firstSeenTimestamp: BigInt!
   firstSeenTxHash: String!
 }

@@ -42,15 +42,18 @@ export const SECONDS_PER_DAY = 86400;
 /**
  * Converts a Unix timestamp (seconds) to a UTC day key and start-of-day timestamp.
  * Used by DailyStats to bucket counters by calendar day.
+ *
+ * Input stays `number` because call sites pass `event.block.timestamp` (number in envio V3).
+ * Returns `dayTimestamp` as `bigint` to match the DailyStats/ChainDailyStats BigInt field.
  */
 export function getUTCDay(timestampSeconds: number): {
   dateKey: string;
-  dayTimestamp: number;
+  dayTimestamp: bigint;
 } {
-  const dayTimestamp = Math.floor(timestampSeconds / SECONDS_PER_DAY) * SECONDS_PER_DAY;
-  const date = new Date(dayTimestamp * 1000);
+  const dayTimestampNum = Math.floor(timestampSeconds / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+  const date = new Date(dayTimestampNum * 1000);
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const day = String(date.getUTCDate()).padStart(2, "0");
-  return { dateKey: `${year}-${month}-${day}`, dayTimestamp };
+  return { dateKey: `${year}-${month}-${day}`, dayTimestamp: BigInt(dayTimestampNum) };
 }

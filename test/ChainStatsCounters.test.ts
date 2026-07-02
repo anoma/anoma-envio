@@ -44,9 +44,9 @@ describe("ChainStats / ChainDailyStats Counters", () => {
 
       const chainStats = await indexer.ChainStats.get(String(CHAIN_A));
       expect(chainStats, "ChainStats row missing").toBeDefined();
-      expect(chainStats!.chainId).toBe(CHAIN_A);
-      expect(chainStats!.resourcePayloads).toBe(1);
-      expect(chainStats!.discoveryPayloads).toBe(0);
+      expect(chainStats!.chainId).toBe(BigInt(CHAIN_A));
+      expect(chainStats!.resourcePayloads).toBe(1n);
+      expect(chainStats!.discoveryPayloads).toBe(0n);
     });
 
     it("should increment ChainDailyStats keyed by '<chainId>-<date>'", async () => {
@@ -70,9 +70,9 @@ describe("ChainStats / ChainDailyStats Counters", () => {
 
       const chainDaily = await indexer.ChainDailyStats.get(`${CHAIN_A}-${DATE_KEY}`);
       expect(chainDaily, "ChainDailyStats row missing").toBeDefined();
-      expect(chainDaily!.chainId).toBe(CHAIN_A);
+      expect(chainDaily!.chainId).toBe(BigInt(CHAIN_A));
       expect(chainDaily!.date).toBe(DATE_KEY);
-      expect(chainDaily!.resourcePayloads).toBe(1);
+      expect(chainDaily!.resourcePayloads).toBe(1n);
     });
   });
 
@@ -118,12 +118,12 @@ describe("ChainStats / ChainDailyStats Counters", () => {
 
       const statsA = await indexer.ChainStats.get(String(CHAIN_A));
       const statsB = await indexer.ChainStats.get(String(CHAIN_B));
-      expect(statsA!.resourcePayloads).toBe(1);
-      expect(statsB!.resourcePayloads).toBe(2);
+      expect(statsA!.resourcePayloads).toBe(1n);
+      expect(statsB!.resourcePayloads).toBe(2n);
 
       // Global Stats should equal the sum across chains.
       const global = await indexer.Stats.get(STATS_ID);
-      expect(global!.resourcePayloads).toBe(3);
+      expect(global!.resourcePayloads).toBe(3n);
     });
 
     it("should not create a ChainStats row for chains that saw no events", async () => {
@@ -190,15 +190,15 @@ describe("ChainStats / ChainDailyStats Counters", () => {
 
       // Global: 2 distinct logics (SHARED_LOGIC, UNIQUE_LOGIC_B).
       const global = await indexer.Stats.get(STATS_ID);
-      expect(global!.distinctLogics).toBe(2);
+      expect(global!.distinctLogics).toBe(2n);
 
       // Chain A: 1 distinct logic (SHARED_LOGIC).
       const statsA = await indexer.ChainStats.get(String(CHAIN_A));
-      expect(statsA!.distinctLogics).toBe(1);
+      expect(statsA!.distinctLogics).toBe(1n);
 
       // Chain B: 2 distinct logics (SHARED_LOGIC seen first on B + UNIQUE_LOGIC_B).
       const statsB = await indexer.ChainStats.get(String(CHAIN_B));
-      expect(statsB!.distinctLogics).toBe(2);
+      expect(statsB!.distinctLogics).toBe(2n);
     });
 
     it("should write ChainLogicRef rows keyed by '<chainId>-<verifyingKey>'", async () => {
@@ -222,7 +222,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
 
       const ref = await indexer.ChainLogicRef.get(`${CHAIN_A}-${SHARED_LOGIC}`);
       expect(ref, "ChainLogicRef row missing").toBeDefined();
-      expect(ref!.chainId).toBe(CHAIN_A);
+      expect(ref!.chainId).toBe(BigInt(CHAIN_A));
       expect(ref!.verifyingKey).toBe(SHARED_LOGIC);
       expect(ref!.firstSeenTxHash).toBe(TX_HASH_A);
     });

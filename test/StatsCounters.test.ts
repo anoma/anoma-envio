@@ -40,7 +40,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.resourcePayloads).toBe(1);
+      expect(stats.resourcePayloads).toBe(1n);
     });
 
     it("should accumulate resourcePayloads across multiple events", async () => {
@@ -71,7 +71,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.resourcePayloads).toBe(2);
+      expect(stats.resourcePayloads).toBe(2n);
     });
   });
 
@@ -95,7 +95,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.discoveryPayloads).toBe(1);
+      expect(stats.discoveryPayloads).toBe(1n);
     });
   });
 
@@ -119,7 +119,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.externalCalls).toBe(1);
+      expect(stats.externalCalls).toBe(1n);
     });
   });
 
@@ -143,7 +143,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.applicationPayloads).toBe(1);
+      expect(stats.applicationPayloads).toBe(1n);
     });
   });
 
@@ -172,7 +172,7 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.forwarderCalls).toBe(1);
+      expect(stats.forwarderCalls).toBe(1n);
     });
   });
 
@@ -230,19 +230,19 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.resourcePayloads).toBe(1);
-      expect(stats.discoveryPayloads).toBe(1);
-      expect(stats.externalCalls).toBe(1);
-      expect(stats.applicationPayloads).toBe(1);
-      expect(stats.forwarderCalls).toBe(1);
+      expect(stats.resourcePayloads).toBe(1n);
+      expect(stats.discoveryPayloads).toBe(1n);
+      expect(stats.externalCalls).toBe(1n);
+      expect(stats.applicationPayloads).toBe(1n);
+      expect(stats.forwarderCalls).toBe(1n);
 
       // Existing counters should remain at 0 (no TransactionExecuted/ActionExecuted processed)
-      expect(stats.transactions).toBe(0);
-      expect(stats.tags).toBe(0);
-      expect(stats.actions).toBe(0);
-      expect(stats.complianceUnits).toBe(0);
-      expect(stats.logicInputs).toBe(0);
-      expect(stats.distinctLogics).toBe(0);
+      expect(stats.transactions).toBe(0n);
+      expect(stats.tags).toBe(0n);
+      expect(stats.actions).toBe(0n);
+      expect(stats.complianceUnits).toBe(0n);
+      expect(stats.logicInputs).toBe(0n);
+      expect(stats.distinctLogics).toBe(0n);
     });
   });
 
@@ -267,13 +267,13 @@ describe("Stats Counters", () => {
       });
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
-      expect(stats.externalCalls).toBe(0);
-      expect(stats.forwarderCalls).toBe(0);
-      expect(stats.resourcePayloads).toBe(0);
-      expect(stats.discoveryPayloads).toBe(0);
-      expect(stats.applicationPayloads).toBe(0);
+      expect(stats.externalCalls).toBe(0n);
+      expect(stats.forwarderCalls).toBe(0n);
+      expect(stats.resourcePayloads).toBe(0n);
+      expect(stats.discoveryPayloads).toBe(0n);
+      expect(stats.applicationPayloads).toBe(0n);
       // But commitmentRoots should be 1
-      expect(stats.commitmentRoots).toBe(1);
+      expect(stats.commitmentRoots).toBe(1n);
     });
   });
 });

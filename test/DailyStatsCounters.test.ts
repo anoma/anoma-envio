@@ -39,8 +39,8 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.resourcePayloads).toBe(1);
-      expect(daily!.dayTimestamp).toBe(0);
+      expect(daily!.resourcePayloads).toBe(1n);
+      expect(daily!.dayTimestamp).toBe(0n);
     });
 
     it("should accumulate DailyStats.resourcePayloads across multiple events", async () => {
@@ -72,7 +72,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.resourcePayloads).toBe(2);
+      expect(daily!.resourcePayloads).toBe(2n);
     });
   });
 
@@ -97,7 +97,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.discoveryPayloads).toBe(1);
+      expect(daily!.discoveryPayloads).toBe(1n);
     });
   });
 
@@ -122,7 +122,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.externalCalls).toBe(1);
+      expect(daily!.externalCalls).toBe(1n);
     });
   });
 
@@ -147,7 +147,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.applicationPayloads).toBe(1);
+      expect(daily!.applicationPayloads).toBe(1n);
     });
   });
 
@@ -177,7 +177,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.forwarderCalls).toBe(1);
+      expect(daily!.forwarderCalls).toBe(1n);
     });
   });
 
@@ -203,7 +203,7 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.commitmentRoots).toBe(1);
+      expect(daily!.commitmentRoots).toBe(1n);
     });
   });
 
@@ -262,18 +262,18 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.resourcePayloads).toBe(1);
-      expect(daily!.discoveryPayloads).toBe(1);
-      expect(daily!.externalCalls).toBe(1);
-      expect(daily!.applicationPayloads).toBe(1);
-      expect(daily!.forwarderCalls).toBe(1);
+      expect(daily!.resourcePayloads).toBe(1n);
+      expect(daily!.discoveryPayloads).toBe(1n);
+      expect(daily!.externalCalls).toBe(1n);
+      expect(daily!.applicationPayloads).toBe(1n);
+      expect(daily!.forwarderCalls).toBe(1n);
 
       // Counters not touched should remain at 0
-      expect(daily!.transactions).toBe(0);
-      expect(daily!.tags).toBe(0);
-      expect(daily!.actions).toBe(0);
-      expect(daily!.complianceUnits).toBe(0);
-      expect(daily!.logicInputs).toBe(0);
+      expect(daily!.transactions).toBe(0n);
+      expect(daily!.tags).toBe(0n);
+      expect(daily!.actions).toBe(0n);
+      expect(daily!.complianceUnits).toBe(0n);
+      expect(daily!.logicInputs).toBe(0n);
     });
   });
 
@@ -300,12 +300,12 @@ describe("DailyStats Counters", () => {
       // Global Stats
       const stats = await indexer.Stats.get("global");
       expect(stats).toBeDefined();
-      expect(stats!.commitmentRoots).toBe(1);
+      expect(stats!.commitmentRoots).toBe(1n);
 
       // DailyStats
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.commitmentRoots).toBe(1);
+      expect(daily!.commitmentRoots).toBe(1n);
     });
   });
 
@@ -331,18 +331,18 @@ describe("DailyStats Counters", () => {
 
       const daily = await indexer.DailyStats.get(DEFAULT_DAY_KEY);
       expect(daily).toBeDefined();
-      expect(daily!.externalCalls).toBe(0);
-      expect(daily!.forwarderCalls).toBe(0);
-      expect(daily!.resourcePayloads).toBe(0);
-      expect(daily!.discoveryPayloads).toBe(0);
-      expect(daily!.applicationPayloads).toBe(0);
-      expect(daily!.transactions).toBe(0);
-      expect(daily!.tags).toBe(0);
-      expect(daily!.actions).toBe(0);
-      expect(daily!.complianceUnits).toBe(0);
-      expect(daily!.logicInputs).toBe(0);
+      expect(daily!.externalCalls).toBe(0n);
+      expect(daily!.forwarderCalls).toBe(0n);
+      expect(daily!.resourcePayloads).toBe(0n);
+      expect(daily!.discoveryPayloads).toBe(0n);
+      expect(daily!.applicationPayloads).toBe(0n);
+      expect(daily!.transactions).toBe(0n);
+      expect(daily!.tags).toBe(0n);
+      expect(daily!.actions).toBe(0n);
+      expect(daily!.complianceUnits).toBe(0n);
+      expect(daily!.logicInputs).toBe(0n);
       // But commitmentRoots should be 1
-      expect(daily!.commitmentRoots).toBe(1);
+      expect(daily!.commitmentRoots).toBe(1n);
     });
   });
 });

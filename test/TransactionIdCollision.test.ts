@@ -104,8 +104,8 @@ describe("Transaction ID Collision", () => {
 
     const stats = await indexer.Stats.get("global");
     expect(stats).toBeDefined();
-    expect(stats!.transactions).toBe(2);
-    expect(stats!.tags).toBe(4);
+    expect(stats!.transactions).toBe(2n);
+    expect(stats!.tags).toBe(4n);
   });
 
   // ─── Action↔Transaction linkage via evmTxId (Task 1) ───────────────────────
