@@ -1,11 +1,11 @@
 /**
  * Event handlers for Anoma Protocol Adapter events.
  *
- * PA-EVM Event Order (within same EVM transaction):
- * 1. ResourcePayload/DiscoveryPayload/ExternalPayload/ApplicationPayload (per resource)
- * 2. ForwarderCallExecuted (if external calls exist)
- * 3. CommitmentTreeRootAdded
- * 4. ActionExecuted (per action)
+ * PA-EVM Event Order (within same EVM transaction), per pa-evm ProtocolAdapter._execute:
+ * 1. ForwarderCallExecuted (per external payload, before that resource's payload events)
+ * 2. ResourcePayload/DiscoveryPayload/ExternalPayload/ApplicationPayload (per resource)
+ * 3. ActionExecuted (once per action, after its compliance units)
+ * 4. CommitmentTreeRootAdded (once, after all actions, when commitments were added)
  * 5. TransactionExecuted (once at the end)
  *
  * Tag Index Convention (from TransactionExecuted):
@@ -460,50 +460,6 @@ indexer.onEvent(
     }
     pendingActionIds.delete(evmTxId);
 
-    // Build a map from nullifier/commitment to compliance unit ID for linking resources
-    // This requires looking at all compliance units from all actions
-    const nullifierToComplianceUnit = new Map<string, string>();
-    const commitmentToComplianceUnit = new Map<string, string>();
-    const tagToLogicInput = new Map<string, string>();
-
-    if (decoded) {
-      for (let actionIndex = 0; actionIndex < decoded.actions.length; actionIndex++) {
-        const action = decoded.actions[actionIndex];
-        // We need to find the action ID - it's based on actionTreeRoot which we can compute
-        // For now, we'll iterate through actions and match by index
-        // The ActionExecuted events have already created Action entities
-
-        // Get all actions for this transaction to find the matching actionId
-        // Since we can't easily query by transaction here, we'll construct the ID
-        // based on the pattern used in ActionExecuted handler
-
-        // Compliance units
-        for (let cuIndex = 0; cuIndex < action.complianceVerifierInputs.length; cuIndex++) {
-          const cu = action.complianceVerifierInputs[cuIndex];
-          // We need the actionId to construct compliance unit ID
-          // The ActionExecuted handler uses: `${txId}_${actionTreeRoot}`
-          // We don't have actionTreeRoot here directly, so we'll use action index
-          // This means we need to update how we track this...
-
-          // For now, store by nullifier/commitment directly
-          nullifierToComplianceUnit.set(
-            cu.instance.consumed.nullifier.toLowerCase(),
-            `action_${actionIndex}_compliance_${cuIndex}`
-          );
-          commitmentToComplianceUnit.set(
-            cu.instance.created.commitment.toLowerCase(),
-            `action_${actionIndex}_compliance_${cuIndex}`
-          );
-        }
-
-        // Logic inputs - map tag to logic input
-        for (let liIndex = 0; liIndex < action.logicVerifierInputs.length; liIndex++) {
-          const li = action.logicVerifierInputs[liIndex];
-          tagToLogicInput.set(li.tag.toLowerCase(), `action_${actionIndex}_logic_${liIndex}`);
-        }
-      }
-    }
-
     // Batch-fetch all existing tags and logicRefs in parallel (eliminates N+1 reads)
     const tagIds = event.params.tags.map((tagHash) => createTagId(event.chainId, tagHash));
     const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
@@ -630,6 +586,12 @@ indexer.onEvent(
 
     // Select this action's decoded data by position. (The previous tag-count match
     // mis-assigned data whenever two actions in one tx shared the same tag count.)
+    if (decoded && actionIndex >= decoded.actions.length) {
+      console.warn(
+        `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
+          `(calldata decoded ${decoded.actions.length} action(s)); compliance/logic entities skipped.`
+      );
+    }
     const decodedAction: DecodedAction | null =
       decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
 
