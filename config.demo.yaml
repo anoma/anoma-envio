@@ -1,0 +1,49 @@
+name: anoma-envio
+save_full_history: false
+contracts:
+  - name: ProtocolAdapter
+    handler: src/EventHandlers.ts
+    events:
+      - event: ActionExecuted(bytes32 actionTreeRoot, uint256 actionTagCount)
+      - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: CommitmentTreeRootAdded(bytes32 root)
+      - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+      - event: Paused(address account)
+      - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
+      - event: Unpaused(address account)
+field_selection:
+  transaction_fields:
+    - "hash"
+    - "from"
+    - "to"
+    - "value"
+    - "input"
+# Testnet-only scope for local/demo deployments (second-screen explorer next to
+# the bridge demo UI). Same contracts, events, and handlers as config.yaml —
+# only the networks list differs, mirroring the config.prod.yaml narrowing
+# pattern to stay within HyperSync's anonymous/free request limits.
+# Canonical pa-evm contracts/v1.1.0 deploys; start_block = contract deploy block.
+networks:
+  - id: 11155111 # Ethereum Sepolia
+    start_block: 10134524
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xf152BBA809d6cba122579cee997A54B8F3FBa417"
+  - id: 97 # BSC Testnet
+    start_block: 100699511
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  - id: 421614 # Arbitrum Sepolia
+    start_block: 284658764
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+unordered_multichain_mode: true
