@@ -75,4 +75,23 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
+  # Testnets — canonical pa-evm contracts/v1.1.0 deploys; start_block = contract deploy block.
+  - id: 11155111 # Ethereum Sepolia
+    start_block: 10134524
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xf152BBA809d6cba122579cee997A54B8F3FBa417"
+  - id: 97 # BSC Testnet
+    start_block: 100699511
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  - id: 421614 # Arbitrum Sepolia
+    start_block: 284658764
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
 unordered_multichain_mode: true
