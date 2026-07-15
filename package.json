@@ -2,6 +2,7 @@
   "name": "anoma-envio",
   "version": "2.6.0",
   "description": "Envio Hyperindex indexer for Anoma Protocol Adapter events",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "clean": "tsc --clean",
     "build": "tsc --build",
@@ -32,13 +33,14 @@
     "yaml": "^2.8.2"
   },
   "dependencies": {
-    "envio": "^2.32.3",
-    "viem": "^2.45.0"
+    "envio": "2.32.12",
+    "viem": "2.45.0"
   },
   "optionalDependencies": {
     "generated": "link:generated"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=9"
   }
 }

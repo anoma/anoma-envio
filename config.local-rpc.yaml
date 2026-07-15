@@ -1,0 +1,55 @@
+# LOCAL-ONLY (uncommitted): RPC-mode variant of config.demo.yaml for machines
+# without an ENVIO_API_TOKEN — anonymous HyperSync is hard rate-limited (0 rpm).
+# RPC URLs come from the environment (never hardcode keys here).
+# start_block: demo era (~2026-07-01) rather than contract deploy, to keep the
+# eth_getLogs backfill small; Arb-Sep uses its 2026-07-06 deploy block.
+name: anoma-envio
+save_full_history: false
+contracts:
+  - name: ProtocolAdapter
+    handler: src/EventHandlers.ts
+    events:
+      - event: ActionExecuted(bytes32 actionTreeRoot, uint256 actionTagCount)
+      - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: CommitmentTreeRootAdded(bytes32 root)
+      - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+      - event: Paused(address account)
+      - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
+      - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
+      - event: Unpaused(address account)
+field_selection:
+  transaction_fields:
+    - "hash"
+    - "from"
+    - "to"
+    - "value"
+    - "input"
+networks:
+  - id: 11155111 # Ethereum Sepolia
+    start_block: 11176111
+    rpc_config:
+      url: ${SEPOLIA_RPC}
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xf152BBA809d6cba122579cee997A54B8F3FBa417"
+  - id: 97 # BSC Testnet
+    start_block: 116489280
+    rpc_config:
+      url: ${BSC_TESTNET_RPC}
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
+  - id: 421614 # Arbitrum Sepolia
+    start_block: 284658764
+    rpc_config:
+      url: ${ARB_SEPOLIA_RPC}
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+unordered_multichain_mode: true
