@@ -13,8 +13,8 @@
  * - Odd indices (1, 3, 5...): created resources (commitments)
  */
 
-import {
-  ProtocolAdapter,
+import { indexer } from "envio";
+import type {
   EVMTransaction,
   Transaction,
   Tag,
@@ -27,19 +27,8 @@ import {
   ProtocolAdapterPaused,
   Stats,
   ChainStats,
-  handlerContext,
-  ProtocolAdapter_TransactionExecuted_event,
-  ProtocolAdapter_ActionExecuted_event,
-  ProtocolAdapter_ResourcePayload_event,
-  ProtocolAdapter_DiscoveryPayload_event,
-  ProtocolAdapter_ExternalPayload_event,
-  ProtocolAdapter_ApplicationPayload_event,
-  ProtocolAdapter_CommitmentTreeRootAdded_event,
-  ProtocolAdapter_ForwarderCallExecuted_event,
-  ProtocolAdapter_OwnershipTransferred_event,
-  ProtocolAdapter_Paused_event,
-  ProtocolAdapter_Unpaused_event,
-} from "generated";
+  EvmOnEventContext,
+} from "envio";
 
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder";
 import { DeletionCriterion, type Action as DecodedAction } from "./types";
@@ -47,67 +36,14 @@ import { BoundedCache } from "./utils/BoundedCache";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE, isConsumedIndex, getUTCDay } from "./constants";
 
 // ============================================
-// Type Aliases
-// ============================================
-
-type TransactionExecutedArgs = {
-  event: ProtocolAdapter_TransactionExecuted_event;
-  context: handlerContext;
-};
-
-type ActionExecutedArgs = {
-  event: ProtocolAdapter_ActionExecuted_event;
-  context: handlerContext;
-};
-
-type ResourcePayloadArgs = {
-  event: ProtocolAdapter_ResourcePayload_event;
-  context: handlerContext;
-};
-
-type DiscoveryPayloadArgs = {
-  event: ProtocolAdapter_DiscoveryPayload_event;
-  context: handlerContext;
-};
-
-type ExternalPayloadArgs = {
-  event: ProtocolAdapter_ExternalPayload_event;
-  context: handlerContext;
-};
-
-type ApplicationPayloadArgs = {
-  event: ProtocolAdapter_ApplicationPayload_event;
-  context: handlerContext;
-};
-
-type CommitmentTreeRootAddedArgs = {
-  event: ProtocolAdapter_CommitmentTreeRootAdded_event;
-  context: handlerContext;
-};
-
-type ForwarderCallExecutedArgs = {
-  event: ProtocolAdapter_ForwarderCallExecuted_event;
-  context: handlerContext;
-};
-
-type OwnershipTransferredArgs = {
-  event: ProtocolAdapter_OwnershipTransferred_event;
-  context: handlerContext;
-};
-
-type PausedArgs = {
-  event: ProtocolAdapter_Paused_event;
-  context: handlerContext;
-};
-
-type UnpausedArgs = {
-  event: ProtocolAdapter_Unpaused_event;
-  context: handlerContext;
-};
-
-// ============================================
 // Helper Functions
 // ============================================
+//
+// V3 migration note: the per-event `*Args` type aliases (event + handlerContext)
+// were removed — `indexer.onEvent({ contract, event }, handler)` infers both the
+// `event` and `context` types from the contract/event literals, so the handler
+// signatures below need no explicit annotation. The shared handler-context type
+// is now `EvmOnEventContext` (imported from "envio"), used by the stat helpers.
 
 /**
  * Creates a unique event identifier from event metadata.
@@ -238,7 +174,7 @@ const STATS_ID = "global";
 /**
  * Gets the current stats or creates a new one with zero counts.
  */
-async function getOrCreateStats(context: handlerContext): Promise<Stats> {
+async function getOrCreateStats(context: EvmOnEventContext): Promise<Stats> {
   const existing = await context.Stats.get(STATS_ID);
   if (existing) {
     return existing;
@@ -265,7 +201,7 @@ async function getOrCreateStats(context: handlerContext): Promise<Stats> {
 }
 
 async function getOrCreateChainStats(
-  context: handlerContext,
+  context: EvmOnEventContext,
   chainId: number
 ): Promise<ChainStats> {
   const id = String(chainId);
@@ -305,7 +241,7 @@ async function getOrCreateChainStats(
  * ChainDailyStats do not track distinctLogics.
  */
 async function incrementAllStats(
-  context: handlerContext,
+  context: EvmOnEventContext,
   chainId: number,
   blockNumber: number,
   timestamp: number,
@@ -466,7 +402,7 @@ async function incrementAllStats(
 // This event fires LAST in the transaction, after all payload events.
 // It provides the authoritative list of tags and their consumed/created status.
 
-ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: TransactionExecutedArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "TransactionExecuted" }, async ({ event, context }) => {
   // Cast transaction to access EVM fields
   const tx = event.transaction as {
     hash: string;
@@ -667,7 +603,7 @@ ProtocolAdapter.TransactionExecuted.handler(async ({ event, context }: Transacti
 // ActionExecuted fires BEFORE TransactionExecuted but AFTER payload events.
 // We decode the calldata here to create ComplianceUnit and LogicInput entities.
 
-ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecutedArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "ActionExecuted" }, async ({ event, context }) => {
   const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
   const txHash = event.transaction.hash;
   // Use evmTxId + actionTreeRoot for unique action ID since multiple actions can be in one tx
@@ -859,7 +795,7 @@ ProtocolAdapter.ActionExecuted.handler(async ({ event, context }: ActionExecuted
 // ResourcePayload fires BEFORE TransactionExecuted.
 // Creates a Payload entity with category "resource" and creates/updates the Tag entity.
 
-ProtocolAdapter.ResourcePayload.handler(async ({ event, context }: ResourcePayloadArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "ResourcePayload" }, async ({ event, context }) => {
   const tagId = createTagId(event.chainId, event.params.tag);
   const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
@@ -930,7 +866,7 @@ function createPayloadEntity(
   };
 }
 
-ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPayloadArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "DiscoveryPayload" }, async ({ event, context }) => {
   const entity = createPayloadEntity(event, "discovery");
   context.Payload.set(entity);
 
@@ -939,7 +875,7 @@ ProtocolAdapter.DiscoveryPayload.handler(async ({ event, context }: DiscoveryPay
   });
 });
 
-ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPayloadArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "ExternalPayload" }, async ({ event, context }) => {
   const entity = createPayloadEntity(event, "externalCall");
   context.Payload.set(entity);
 
@@ -948,7 +884,7 @@ ProtocolAdapter.ExternalPayload.handler(async ({ event, context }: ExternalPaylo
   });
 });
 
-ProtocolAdapter.ApplicationPayload.handler(async ({ event, context }: ApplicationPayloadArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "ApplicationPayload" }, async ({ event, context }) => {
   const entity = createPayloadEntity(event, "application");
   context.Payload.set(entity);
 
@@ -961,8 +897,9 @@ ProtocolAdapter.ApplicationPayload.handler(async ({ event, context }: Applicatio
 // CommitmentTreeRootAdded Handler
 // ============================================
 
-ProtocolAdapter.CommitmentTreeRootAdded.handler(
-  async ({ event, context }: CommitmentTreeRootAddedArgs) => {
+indexer.onEvent(
+  { contract: "ProtocolAdapter", event: "CommitmentTreeRootAdded" },
+  async ({ event, context }) => {
     const eventId = createEventId(event);
 
     const entity: CommitmentTreeRoot = {
@@ -988,8 +925,9 @@ ProtocolAdapter.CommitmentTreeRootAdded.handler(
 // ForwarderCallExecuted Handler
 // ============================================
 
-ProtocolAdapter.ForwarderCallExecuted.handler(
-  async ({ event, context }: ForwarderCallExecutedArgs) => {
+indexer.onEvent(
+  { contract: "ProtocolAdapter", event: "ForwarderCallExecuted" },
+  async ({ event, context }) => {
     const eventId = createEventId(event);
 
     const entity: ForwarderCall = {
@@ -1015,8 +953,9 @@ ProtocolAdapter.ForwarderCallExecuted.handler(
 // OwnershipTransferred Handler
 // ============================================
 
-ProtocolAdapter.OwnershipTransferred.handler(
-  async ({ event, context }: OwnershipTransferredArgs) => {
+indexer.onEvent(
+  { contract: "ProtocolAdapter", event: "OwnershipTransferred" },
+  async ({ event, context }) => {
     const eventId = createEventId(event);
 
     const entity: OwnershipTransferred = {
@@ -1037,7 +976,7 @@ ProtocolAdapter.OwnershipTransferred.handler(
 // Paused / Unpaused Handlers
 // ============================================
 
-ProtocolAdapter.Paused.handler(async ({ event, context }: PausedArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "Paused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
 
   const entity: ProtocolAdapterPaused = {
@@ -1053,7 +992,7 @@ ProtocolAdapter.Paused.handler(async ({ event, context }: PausedArgs) => {
   context.ProtocolAdapterPaused.set(entity);
 });
 
-ProtocolAdapter.Unpaused.handler(async ({ event, context }: UnpausedArgs) => {
+indexer.onEvent({ contract: "ProtocolAdapter", event: "Unpaused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
 
   const entity: ProtocolAdapterPaused = {

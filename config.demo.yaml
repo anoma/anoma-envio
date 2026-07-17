@@ -27,7 +27,7 @@ field_selection:
 # only the networks list differs, mirroring the config.prod.yaml narrowing
 # pattern to stay within HyperSync's anonymous/free request limits.
 # Canonical pa-evm contracts/v1.1.0 deploys; start_block = contract deploy block.
-networks:
+chains:
   - id: 11155111 # Ethereum Sepolia
     start_block: 10134524
     contracts:
@@ -46,4 +46,3 @@ networks:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-unordered_multichain_mode: true

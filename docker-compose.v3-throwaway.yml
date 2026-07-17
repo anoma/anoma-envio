@@ -1,0 +1,60 @@
+# THROWAWAY infra for the envio-v3 migration test ONLY.
+# Fully isolated from the live 2.32.12 stack:
+#   - distinct network name (anoma-v3-throwaway-net, NOT the shared anoma-network)
+#   - distinct volume (pg_v3_throwaway)
+#   - distinct host ports (pg 5455, hasura 8181 — live uses 5433/5432 + 8080)
+#   - run under a distinct project: docker compose -p anoma-v3-throwaway
+# Tear down with:  docker compose -p anoma-v3-throwaway -f docker-compose.v3-throwaway.yml down -v
+# (safe: -v only removes THIS project's pg_v3_throwaway volume, never generated_db_data)
+networks:
+  anoma-v3-throwaway-net:
+    name: anoma-v3-throwaway-net
+
+volumes:
+  pg_v3_throwaway:
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:17.5
+    ports:
+      - 5455:5432
+    volumes:
+      - pg_v3_throwaway:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: envio
+    networks:
+      - anoma-v3-throwaway-net
+    healthcheck:
+      test: pg_isready -U postgres -d envio
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  hasura:
+    user: 1001:1001
+    restart: unless-stopped
+    image: hasura/graphql-engine:v2.43.0
+    ports:
+      - 8181:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:postgres@postgres:5432/envio
+      HASURA_GRAPHQL_ENABLE_CONSOLE: true
+      HASURA_GRAPHQL_LOG_LEVEL: warn
+      HASURA_GRAPHQL_ADMIN_SECRET: testing
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: true
+      PORT: 8080
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 5s
+      timeout: 2s
+      retries: 50
+      start_period: 5s
+    networks:
+      - anoma-v3-throwaway-net
