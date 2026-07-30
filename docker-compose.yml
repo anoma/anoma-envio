@@ -90,7 +90,7 @@ services:
       ENVIO_HASURA: true
       LOG_LEVEL: warn
       LOG_STRATEGY: console-pretty
-      TUI_OFF: true
+      ENVIO_TUI: false
       CONFIG_FILE: config.yaml
 
       # database configuration
@@ -99,7 +99,7 @@ services:
       ENVIO_PG_USER: postgres
       ENVIO_PG_PORT: 5432
       ENVIO_PG_DATABASE: envio
-      ENVIO_PG_PUBLIC_SCHEMA: envio
+      ENVIO_PG_SCHEMA: envio
 
       # hasura configuration
       HASURA_GRAPHQL_ENDPOINT: http://hasura:8080/v1/metadata

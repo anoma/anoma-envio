@@ -22,21 +22,21 @@
  */
 
 import { decodeFunctionData, type Hex, type Abi } from "viem";
-import { EXECUTE_SELECTOR } from "../constants";
-import {
+import { EXECUTE_SELECTOR } from "../constants.js";
+import type {
   Transaction,
   Action,
   LogicVerifierInput,
   ComplianceVerifierInput,
   AppData,
   ExpirableBlob,
-  DeletionCriterion,
-} from "../types";
+} from "../types/index.js";
+import { DeletionCriterion } from "../types/index.js";
 
 // ABI for the execute function with nested structs
 // Based on the full signature from the contract:
 // execute((((bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]),bytes)[],(bytes,((bytes32,bytes32,bytes32),(bytes32,bytes32),bytes32,bytes32))[])[],bytes,bytes))
-const EXECUTE_ABI: Abi = [
+export const EXECUTE_ABI: Abi = [
   {
     name: "execute",
     type: "function",

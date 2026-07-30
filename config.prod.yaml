@@ -27,7 +27,7 @@ field_selection:
 # excluded here to keep request volume within Envio's Free tier (500 rpm).
 # Dev (config.yaml) continues to index the full chain set.
 # Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
-networks:
+chains:
   - id: 1 # Mainnet
     start_block: 24326330
     contracts:
@@ -55,7 +55,7 @@ networks:
   - id: 988 # Stable
     start_block: 29105471
     # Stable is not supported by HyperSync, so index via RPC.
-    rpc_config:
+    rpc:
       url: https://rpc.stable.xyz
     contracts:
       - name: ProtocolAdapter
@@ -63,20 +63,17 @@ networks:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
   - id: 4326 # MegaETH
     start_block: 19402510
-    # envio 2.x cannot auto-resolve MegaETH's HyperSync endpoint, so set it explicitly.
-    hypersync_config:
-      url: https://4326.hypersync.xyz
+    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
+    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://4326.hypersync.xyz" }
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
   - id: 1313161554 # Aurora
     start_block: 203917905
-    # envio 2.x cannot auto-resolve Aurora's HyperSync endpoint, so set it explicitly.
-    hypersync_config:
-      url: https://1313161554.hypersync.xyz
+    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
+    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://1313161554.hypersync.xyz" }
     contracts:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-unordered_multichain_mode: true

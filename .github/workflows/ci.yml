@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   # Generate matrix from config.yaml — single source of truth for chain list
@@ -180,7 +180,7 @@ jobs:
           elif [ -n "${{ matrix.rpc_url }}" ]; then
             export "RPC_${{ matrix.rpc_key }}=${{ matrix.rpc_url }}"
           fi
-          pnpm ts-mocha --timeout 120000 --grep '\(chain ${{ matrix.chain_id }}\)' 'test/ci/config-validation.test.ts'
+          pnpm exec vitest run test/ci/config-validation.test.ts --testNamePattern '\(chain ${{ matrix.chain_id }}\)'
 
   integration:
     name: Integration (${{ matrix.name }})
@@ -220,15 +220,15 @@ jobs:
       - name: Configure for CI (${{ matrix.name }} only)
         run: |
           # Filter to single chain
-          yq -i '.networks = [.networks[] | select(.id == ${{ matrix.chain_id }})]' config.yaml
+          yq -i '.chains = [.chains[] | select(.id == ${{ matrix.chain_id }})]' config.yaml
 
           # Detect how this chain syncs historical data.
-          CONFIG_RPC=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
-          HYPERSYNC=$(yq '.networks[0].hypersync_config.url // ""' config.yaml)
+          CONFIG_RPC=$(yq '.chains[0].rpc.url // ""' config.yaml)
+          HYPERSYNC=$(yq '.chains[0].hypersync.url // ""' config.yaml)
 
           # Pick an archive RPC for tip detection (and, for RPC-sync chains, for
           # the indexer itself): prefer Alchemy, then the matrix public RPC, then
-          # whatever rpc_config the config already declares.
+          # whatever rpc the config already declares.
           if [ -n "${{ matrix.alchemy }}" ] && [ -n "$ALCHEMY_API_KEY" ]; then
             RPC_URL="https://${{ matrix.alchemy }}.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
           elif [ -n "${{ matrix.rpc_url }}" ]; then
@@ -237,12 +237,12 @@ jobs:
             RPC_URL="$CONFIG_RPC"
           fi
 
-          # If the chain syncs via neither rpc_config nor hypersync_config, inject
-          # the RPC as its data source. Skip when hypersync_config is set — Envio
+          # If the chain syncs via neither rpc nor hypersync, inject
+          # the RPC as its data source. Skip when hypersync is set — Envio
           # rejects defining both at once (EE106).
           if [ -z "$CONFIG_RPC" ] && [ -z "$HYPERSYNC" ]; then
             export RPC_URL
-            yq -i '.networks[0].rpc_config.url = env(RPC_URL)' config.yaml
+            yq -i '.chains[0].rpc.url = env(RPC_URL)' config.yaml
             # Remove transaction_fields not available via RPC (only via HyperSync)
             yq -i '.field_selection.transaction_fields -= ["gasUsed", "status"]' config.yaml
           fi
@@ -257,7 +257,7 @@ jobs:
             RECENT_START=$((TIP - 5000))
             export RECENT_START
             echo "Chain tip: $TIP, setting start_block to $RECENT_START"
-            yq -i '.networks[0].start_block = env(RECENT_START)' config.yaml
+            yq -i '.chains[0].start_block = env(RECENT_START)' config.yaml
           else
             echo "WARNING: Could not get valid chain tip (got $TIP), keeping config start_block"
           fi
@@ -289,14 +289,14 @@ jobs:
       - name: Run integration tests
         run: |
           export ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
-          # Set RPC env var for parity test. HyperSync chains have no rpc_config,
+          # Set RPC env var for parity test. HyperSync chains have no rpc,
           # so fall back to the matrix RPC.
-          RPC_URL=$(yq '.networks[0].rpc_config.url // ""' config.yaml)
+          RPC_URL=$(yq '.chains[0].rpc.url // ""' config.yaml)
           [ -z "$RPC_URL" ] && RPC_URL="${{ matrix.rpc_url }}"
           if [ -n "$RPC_URL" ]; then
             export "RPC_${{ matrix.rpc_key }}=$RPC_URL"
           fi
-          pnpm ts-mocha --timeout 120000 'test/graphql.test.ts' 'test/parity.test.ts'
+          pnpm exec vitest run test/graphql.test.ts test/parity.test.ts
 
       - name: Docker compose logs
         if: failure()

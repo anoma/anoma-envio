@@ -12,8 +12,8 @@
  * }
  */
 
-import { LogicVerifierInput } from "./Logic";
-import { ComplianceVerifierInput } from "./Compliance";
+import type { LogicVerifierInput } from "./Logic";
+import type { ComplianceVerifierInput } from "./Compliance";
 
 export interface Action {
   logicVerifierInputs: LogicVerifierInput[];

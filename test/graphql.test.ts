@@ -8,7 +8,7 @@
  *   ENVIO_GRAPHQL_URL=https://your-endpoint/v1/graphql pnpm test
  */
 
-import { expect } from "chai";
+import { describe, it, expect } from "vitest";
 
 const GRAPHQL_URL: string | undefined = process.env.ENVIO_GRAPHQL_URL;
 
@@ -33,17 +33,11 @@ async function query<T>(queryString: string): Promise<T> {
   return result.data as T;
 }
 
-describe("GraphQL Endpoint", function () {
-  before(function () {
-    if (!GRAPHQL_URL) {
-      this.skip();
-    }
-  });
-
+describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
   describe("Connection", () => {
     it("should connect to the endpoint", async () => {
       const data = await query<{ __typename: string }>(`{ __typename }`);
-      expect(data).to.have.property("__typename");
+      expect(data).toHaveProperty("__typename");
     });
   });
 
@@ -63,10 +57,10 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Transaction).to.be.an("array");
-      expect(data.Tag).to.be.an("array");
-      expect(data.Action).to.be.an("array");
-      expect(data.CommitmentTreeRoot).to.be.an("array");
+      expect(Array.isArray(data.Transaction)).toBe(true);
+      expect(Array.isArray(data.Tag)).toBe(true);
+      expect(Array.isArray(data.Action)).toBe(true);
+      expect(Array.isArray(data.CommitmentTreeRoot)).toBe(true);
 
       console.log("\n  Entity counts (sampled up to 100):");
       console.log(`    Transactions: ${data.Transaction.length}`);
@@ -96,14 +90,14 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Transaction).to.be.an("array");
+      expect(Array.isArray(data.Transaction)).toBe(true);
 
       if (data.Transaction.length > 0) {
         const tx = data.Transaction[0];
-        expect(tx).to.have.property("evmTransaction");
-        expect(tx.evmTransaction).to.have.property("txHash");
-        expect(tx).to.have.property("tagHashes").that.is.an("array");
-        expect(tx).to.have.property("logicRefs").that.is.an("array");
+        expect(tx).toHaveProperty("evmTransaction");
+        expect(tx.evmTransaction).toHaveProperty("txHash");
+        expect(Array.isArray(tx.tagHashes)).toBe(true);
+        expect(Array.isArray(tx.logicRefs)).toBe(true);
         console.log(
           `\n  Latest tx: ${tx.evmTransaction.txHash} (block ${tx.evmTransaction.blockNumber})`
         );
@@ -131,13 +125,13 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Tag).to.be.an("array");
+      expect(Array.isArray(data.Tag)).toBe(true);
 
       if (data.Tag.length > 0) {
         const tag = data.Tag[0];
-        expect(tag).to.have.property("tagHash");
-        expect(tag).to.have.property("isConsumed").that.is.a("boolean");
-        expect(tag).to.have.property("transaction");
+        expect(tag).toHaveProperty("tagHash");
+        expect(typeof tag.isConsumed).toBe("boolean");
+        expect(tag).toHaveProperty("transaction");
         console.log(`\n  Latest tag: ${tag.tagHash.slice(0, 20)}... (consumed: ${tag.isConsumed})`);
       }
     });
@@ -154,8 +148,8 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Tag).to.be.an("array");
-      data.Tag.forEach((t) => expect(t.isConsumed).to.be.true);
+      expect(Array.isArray(data.Tag)).toBe(true);
+      data.Tag.forEach((t) => expect(t.isConsumed).toBe(true));
     });
 
     it("should filter created tags", async () => {
@@ -170,8 +164,8 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Tag).to.be.an("array");
-      data.Tag.forEach((t) => expect(t.isConsumed).to.be.false);
+      expect(Array.isArray(data.Tag)).toBe(true);
+      data.Tag.forEach((t) => expect(t.isConsumed).toBe(false));
     });
   });
 
@@ -195,12 +189,12 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Action).to.be.an("array");
+      expect(Array.isArray(data.Action)).toBe(true);
 
       if (data.Action.length > 0) {
         const action = data.Action[0];
-        expect(action).to.have.property("actionTreeRoot");
-        expect(action).to.have.property("actionTagCount").that.is.a("number");
+        expect(action).toHaveProperty("actionTreeRoot");
+        expect(typeof action.actionTagCount).toBe("number");
       }
     });
   });
@@ -223,11 +217,11 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.CommitmentTreeRoot).to.be.an("array");
+      expect(Array.isArray(data.CommitmentTreeRoot)).toBe(true);
 
       if (data.CommitmentTreeRoot.length > 0) {
         const root = data.CommitmentTreeRoot[0];
-        expect(root).to.have.property("root").that.is.a("string");
+        expect(typeof root.root).toBe("string");
       }
     });
   });
@@ -256,11 +250,11 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(data.Transaction).to.be.an("array");
+      expect(Array.isArray(data.Transaction)).toBe(true);
 
       if (data.Transaction.length > 0) {
         const tx = data.Transaction[0];
-        expect(tx.tags).to.be.an("array");
+        expect(Array.isArray(tx.tags)).toBe(true);
 
         console.log(`\n  Transaction ${tx.evmTransaction.txHash.slice(0, 20)}...`);
         console.log(`    TagHashes: ${tx.tagHashes.length}`);
@@ -324,8 +318,8 @@ describe("GraphQL Endpoint", function () {
         }
       `);
 
-      expect(txData.Transaction).to.be.an("array");
-      expect(rootData.CommitmentTreeRoot).to.be.an("array");
+      expect(Array.isArray(txData.Transaction)).toBe(true);
+      expect(Array.isArray(rootData.CommitmentTreeRoot)).toBe(true);
 
       if (txData.Transaction.length === 0) {
         console.log("\n  No transactions indexed yet — skipping parity check");
@@ -377,21 +371,12 @@ describe("GraphQL Endpoint", function () {
 
         // The CommitmentTreeRootAdded event fires right before TransactionExecuted,
         // so they must share the same txHash and block number.
-        expect(root.txHash.toLowerCase()).to.equal(
-          txHash.toLowerCase(),
-          `Chain ${chainId}: latest CommitmentTreeRoot txHash does not match latest Transaction txHash`
-        );
-        expect(root.blockNumber).to.equal(
-          txBlock,
-          `Chain ${chainId}: latest CommitmentTreeRoot blockNumber does not match latest Transaction blockNumber`
-        );
+        expect(root.txHash.toLowerCase()).toBe(txHash.toLowerCase());
+        expect(root.blockNumber).toBe(txBlock);
 
         // CommitmentTreeRootAdded fires before TransactionExecuted in the same tx,
         // so the root's logIndex must be less than the transaction's logIndex.
-        expect(root.logIndex).to.be.lessThan(
-          tx.logIndex,
-          `Chain ${chainId}: CommitmentTreeRoot logIndex should be less than TransactionExecuted logIndex`
-        );
+        expect(root.logIndex).toBeLessThan(tx.logIndex);
 
         console.log(`      MATCH ✓`);
       }
@@ -430,13 +415,13 @@ describe("GraphQL Endpoint", function () {
         throw e;
       }
 
-      expect(data.Payload).to.be.an("array");
+      expect(Array.isArray(data.Payload)).toBe(true);
 
       if (data.Payload.length > 0) {
         const p = data.Payload[0];
-        expect(p.category).to.equal("externalCall");
-        expect(p).to.have.property("tagHash").that.is.a("string");
-        expect(p).to.have.property("blob").that.is.a("string");
+        expect(p.category).toBe("externalCall");
+        expect(typeof p.tagHash).toBe("string");
+        expect(typeof p.blob).toBe("string");
 
         console.log(`\n  External Call Payloads found: ${data.Payload.length}`);
         console.log(`    First: ${p.id}`);

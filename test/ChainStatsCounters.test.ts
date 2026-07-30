@@ -7,10 +7,8 @@
  * Refs anoma/anoma-explorer#139
  */
 
-import { expect } from "chai";
-import { TestHelpers } from "generated";
-
-const { MockDb, ProtocolAdapter } = TestHelpers;
+import { describe, it, expect } from "vitest";
+import { createTestIndexer } from "envio";
 
 const STATS_ID = "global";
 const CHAIN_A = 1;
@@ -20,194 +18,213 @@ const CHAIN_B = 42161;
 const TIMESTAMP = 1779148800;
 const DATE_KEY = "2026-05-19";
 
+const TX_HASH_A = "0xabababababababababababababababababababababababababababababababababab";
+const TX_HASH_B = "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
+
 describe("ChainStats / ChainDailyStats Counters", () => {
   describe("single chain", () => {
     it("should increment ChainStats keyed by chainId", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A },
+                logIndex: 0,
+              },
+            ],
+          },
         },
       });
 
-      const result = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const chainStats = result.entities.ChainStats.get(String(CHAIN_A));
-      expect(chainStats, "ChainStats row missing").to.not.be.undefined;
-      expect(chainStats!.chainId).to.equal(CHAIN_A);
-      expect(chainStats!.resourcePayloads).to.equal(1);
-      expect(chainStats!.discoveryPayloads).to.equal(0);
+      const chainStats = await indexer.ChainStats.get(String(CHAIN_A));
+      expect(chainStats, "ChainStats row missing").toBeDefined();
+      expect(chainStats!.chainId).toBe(BigInt(CHAIN_A));
+      expect(chainStats!.resourcePayloads).toBe(1n);
+      expect(chainStats!.discoveryPayloads).toBe(0n);
     });
 
     it("should increment ChainDailyStats keyed by '<chainId>-<date>'", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A },
+                logIndex: 0,
+              },
+            ],
+          },
         },
       });
 
-      const result = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const chainDaily = result.entities.ChainDailyStats.get(`${CHAIN_A}-${DATE_KEY}`);
-      expect(chainDaily, "ChainDailyStats row missing").to.not.be.undefined;
-      expect(chainDaily!.chainId).to.equal(CHAIN_A);
-      expect(chainDaily!.date).to.equal(DATE_KEY);
-      expect(chainDaily!.resourcePayloads).to.equal(1);
+      const chainDaily = await indexer.ChainDailyStats.get(`${CHAIN_A}-${DATE_KEY}`);
+      expect(chainDaily, "ChainDailyStats row missing").toBeDefined();
+      expect(chainDaily!.chainId).toBe(BigInt(CHAIN_A));
+      expect(chainDaily!.date).toBe(DATE_KEY);
+      expect(chainDaily!.resourcePayloads).toBe(1n);
     });
   });
 
   describe("multi-chain isolation", () => {
     it("should keep ChainStats counters separate per chain", async () => {
-      let db = MockDb.createMockDb();
-
-      const eventA = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A },
+                logIndex: 0,
+              },
+            ],
+          },
+          [CHAIN_B]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "bb".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 200, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_B },
+                logIndex: 0,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "cc".repeat(32), index: 1n, blob: "0x00" },
+                block: { number: 201, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_B },
+                logIndex: 1,
+              },
+            ],
+          },
         },
       });
-      db = await ProtocolAdapter.ResourcePayload.processEvent({ event: eventA, mockDb: db });
 
-      const eventB1 = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "bb".repeat(32),
-        index: 0n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_B,
-          block: { number: 200, timestamp: TIMESTAMP },
-        },
-      });
-      db = await ProtocolAdapter.ResourcePayload.processEvent({ event: eventB1, mockDb: db });
-
-      const eventB2 = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "cc".repeat(32),
-        index: 1n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_B,
-          block: { number: 201, timestamp: TIMESTAMP },
-        },
-      });
-      db = await ProtocolAdapter.ResourcePayload.processEvent({ event: eventB2, mockDb: db });
-
-      const statsA = db.entities.ChainStats.get(String(CHAIN_A));
-      const statsB = db.entities.ChainStats.get(String(CHAIN_B));
-      expect(statsA!.resourcePayloads).to.equal(1);
-      expect(statsB!.resourcePayloads).to.equal(2);
+      const statsA = await indexer.ChainStats.get(String(CHAIN_A));
+      const statsB = await indexer.ChainStats.get(String(CHAIN_B));
+      expect(statsA!.resourcePayloads).toBe(1n);
+      expect(statsB!.resourcePayloads).toBe(2n);
 
       // Global Stats should equal the sum across chains.
-      const global = db.entities.Stats.get(STATS_ID);
-      expect(global!.resourcePayloads).to.equal(3);
+      const global = await indexer.Stats.get(STATS_ID);
+      expect(global!.resourcePayloads).toBe(3n);
     });
 
     it("should not create a ChainStats row for chains that saw no events", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A },
+                logIndex: 0,
+              },
+            ],
+          },
         },
       });
 
-      const result = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      expect(result.entities.ChainStats.get(String(CHAIN_B))).to.be.undefined;
+      const statsB = await indexer.ChainStats.get(String(CHAIN_B));
+      expect(statsB).toBeUndefined();
     });
   });
 
   describe("ChainLogicRef distinct counting", () => {
-    const TX_HASH_A = "0x" + "ab".repeat(32);
-    const TX_HASH_B = "0x" + "cd".repeat(32);
     const TAGS = ["0x" + "11".repeat(32), "0x" + "12".repeat(32)];
     const SHARED_LOGIC = "0x" + "ff".repeat(32);
     const UNIQUE_LOGIC_B = "0x" + "ee".repeat(32);
 
     it("should count a verifyingKey once per chain even when shared across chains", async () => {
-      let db = MockDb.createMockDb();
-
-      // Chain A: one tx with logic ref SHARED_LOGIC used twice (so unique-set size 1).
-      const eventA = ProtocolAdapter.TransactionExecuted.createMockEvent({
-        tags: TAGS,
-        logicRefs: [SHARED_LOGIC, SHARED_LOGIC],
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
-          transaction: { hash: TX_HASH_A },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          // Chain A: one tx with logic ref SHARED_LOGIC used twice (unique-set size 1).
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "TransactionExecuted",
+                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
+                logIndex: 0,
+              },
+            ],
+          },
+          // Chain B: one tx with SHARED_LOGIC (same key, different chain) + UNIQUE_LOGIC_B.
+          [CHAIN_B]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "TransactionExecuted",
+                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, UNIQUE_LOGIC_B] },
+                block: { number: 200, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_B, input: "0x", value: 0n },
+                logIndex: 0,
+              },
+            ],
+          },
         },
       });
-      db = await ProtocolAdapter.TransactionExecuted.processEvent({ event: eventA, mockDb: db });
-
-      // Chain B: one tx with SHARED_LOGIC (same key, different chain) + a new UNIQUE_LOGIC_B.
-      const eventB = ProtocolAdapter.TransactionExecuted.createMockEvent({
-        tags: TAGS,
-        logicRefs: [SHARED_LOGIC, UNIQUE_LOGIC_B],
-        mockEventData: {
-          chainId: CHAIN_B,
-          block: { number: 200, timestamp: TIMESTAMP },
-          transaction: { hash: TX_HASH_B },
-        },
-      });
-      db = await ProtocolAdapter.TransactionExecuted.processEvent({ event: eventB, mockDb: db });
 
       // Global: 2 distinct logics (SHARED_LOGIC, UNIQUE_LOGIC_B).
-      const global = db.entities.Stats.get(STATS_ID);
-      expect(global!.distinctLogics).to.equal(2);
+      const global = await indexer.Stats.get(STATS_ID);
+      expect(global!.distinctLogics).toBe(2n);
 
       // Chain A: 1 distinct logic (SHARED_LOGIC).
-      const statsA = db.entities.ChainStats.get(String(CHAIN_A));
-      expect(statsA!.distinctLogics).to.equal(1);
+      const statsA = await indexer.ChainStats.get(String(CHAIN_A));
+      expect(statsA!.distinctLogics).toBe(1n);
 
       // Chain B: 2 distinct logics (SHARED_LOGIC seen first on B + UNIQUE_LOGIC_B).
-      const statsB = db.entities.ChainStats.get(String(CHAIN_B));
-      expect(statsB!.distinctLogics).to.equal(2);
+      const statsB = await indexer.ChainStats.get(String(CHAIN_B));
+      expect(statsB!.distinctLogics).toBe(2n);
     });
 
     it("should write ChainLogicRef rows keyed by '<chainId>-<verifyingKey>'", async () => {
-      const mockDb = MockDb.createMockDb();
-      const event = ProtocolAdapter.TransactionExecuted.createMockEvent({
-        tags: TAGS,
-        logicRefs: [SHARED_LOGIC, SHARED_LOGIC],
-        mockEventData: {
-          chainId: CHAIN_A,
-          block: { number: 100, timestamp: TIMESTAMP },
-          transaction: { hash: TX_HASH_A },
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          [CHAIN_A]: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "TransactionExecuted",
+                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
+                block: { number: 100, timestamp: TIMESTAMP },
+                transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
+                logIndex: 0,
+              },
+            ],
+          },
         },
       });
 
-      const result = await ProtocolAdapter.TransactionExecuted.processEvent({
-        event,
-        mockDb,
-      });
-
-      const ref = result.entities.ChainLogicRef.get(`${CHAIN_A}-${SHARED_LOGIC}`);
-      expect(ref, "ChainLogicRef row missing").to.not.be.undefined;
-      expect(ref!.chainId).to.equal(CHAIN_A);
-      expect(ref!.verifyingKey).to.equal(SHARED_LOGIC);
-      expect(ref!.firstSeenTxHash).to.equal(TX_HASH_A);
+      const ref = await indexer.ChainLogicRef.get(`${CHAIN_A}-${SHARED_LOGIC}`);
+      expect(ref, "ChainLogicRef row missing").toBeDefined();
+      expect(ref!.chainId).toBe(BigInt(CHAIN_A));
+      expect(ref!.verifyingKey).toBe(SHARED_LOGIC);
+      expect(ref!.firstSeenTxHash).toBe(TX_HASH_A);
     });
   });
 });

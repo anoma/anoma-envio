@@ -2,7 +2,7 @@
  * Shared chain utilities — all derived from config.yaml, nothing hardcoded.
  *
  * Chain names are parsed from YAML inline comments (e.g., "- id: 1 # Mainnet").
- * RPC URLs come from env vars or config.yaml rpc_config — no fallback defaults.
+ * RPC URLs come from env vars or config.yaml rpc.url — no fallback defaults.
  */
 
 import * as fs from "fs";
@@ -12,12 +12,12 @@ import * as yaml from "yaml";
 export interface NetworkConfig {
   id: number;
   start_block: number;
-  rpc_config?: { url: string };
+  rpc?: { url: string };
   contracts: Array<{ name: string; address: string[] }>;
 }
 
 export interface Config {
-  networks: NetworkConfig[];
+  chains: NetworkConfig[];
 }
 
 /**
@@ -26,7 +26,7 @@ export interface Config {
 export function parseConfig(configPath?: string): NetworkConfig[] {
   const p = configPath ?? path.resolve(__dirname, "..", "config.yaml");
   const raw = fs.readFileSync(p, "utf-8");
-  return (yaml.parse(raw) as Config).networks;
+  return (yaml.parse(raw) as Config).chains;
 }
 
 /**
@@ -86,8 +86,8 @@ export function getRpcUrl(network: NetworkConfig): string | undefined {
   if (process.env[idKey]) {
     return process.env[idKey];
   }
-  if (network.rpc_config?.url) {
-    return network.rpc_config.url;
+  if (network.rpc?.url) {
+    return network.rpc.url;
   }
   return undefined;
 }

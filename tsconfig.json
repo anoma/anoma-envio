@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "lib": ["es2020"],
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
     "allowJs": true,
     "checkJs": false,
     "outDir": "build",
@@ -9,8 +13,7 @@
     "noImplicitAny": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "module": "CommonJS"
+    "skipLibCheck": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "envio-env.d.ts"]
 }

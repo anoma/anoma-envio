@@ -5,239 +5,275 @@
  * resourcePayloads, discoveryPayloads, applicationPayloads) are properly
  * incremented by their respective event handlers.
  *
- * Uses Envio's MockDb + processEvent helpers for isolated unit testing.
- *
  * Refs #12
  */
 
-import { expect } from "chai";
-import { TestHelpers } from "generated";
-
-const { MockDb, ProtocolAdapter } = TestHelpers;
+import { describe, it, expect } from "vitest";
+import { createTestIndexer } from "envio";
 
 const STATS_ID = "global";
+
+// Default TX hash used in tests — must be a 32-byte hex string
+const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
+// Default forwarder address (20-byte hex)
+const FORWARDER = "0xffffffffffffffffffffffffffffffffffffffff";
 
 describe("Stats Counters", () => {
   describe("resourcePayloads", () => {
     it("should increment resourcePayloads on ResourcePayload event", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.resourcePayloads).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.resourcePayloads).toBe(1n);
     });
 
     it("should accumulate resourcePayloads across multiple events", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 0,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "bb".repeat(32), index: 1n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 1,
+              },
+            ],
+          },
+        },
+      });
 
-      const event1 = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "aa".repeat(32),
-        index: 0n,
-        blob: "0x00",
-      });
-      const db1 = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: event1,
-        mockDb,
-      });
-
-      const event2 = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "bb".repeat(32),
-        index: 1n,
-        blob: "0x00",
-      });
-      const db2 = await ProtocolAdapter.ResourcePayload.processEvent({
-        event: event2,
-        mockDb: db1,
-      });
-
-      const stats = db2.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.resourcePayloads).to.equal(2);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.resourcePayloads).toBe(2n);
     });
   });
 
   describe("discoveryPayloads", () => {
     it("should increment discoveryPayloads on DiscoveryPayload event", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.DiscoveryPayload.createMockEvent({
-        tag: "0x" + "cc".repeat(32),
-        index: 0n,
-        blob: "0x00",
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "DiscoveryPayload",
+                params: { tag: "0x" + "cc".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.DiscoveryPayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.discoveryPayloads).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.discoveryPayloads).toBe(1n);
     });
   });
 
   describe("externalCalls", () => {
     it("should increment externalCalls on ExternalPayload event", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ExternalPayload.createMockEvent({
-        tag: "0x" + "dd".repeat(32),
-        index: 0n,
-        blob: "0x00",
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ExternalPayload",
+                params: { tag: "0x" + "dd".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.ExternalPayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.externalCalls).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.externalCalls).toBe(1n);
     });
   });
 
   describe("applicationPayloads", () => {
     it("should increment applicationPayloads on ApplicationPayload event", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ApplicationPayload.createMockEvent({
-        tag: "0x" + "ee".repeat(32),
-        index: 0n,
-        blob: "0x00",
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ApplicationPayload",
+                params: { tag: "0x" + "ee".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.ApplicationPayload.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.applicationPayloads).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.applicationPayloads).toBe(1n);
     });
   });
 
   describe("forwarderCalls", () => {
     it("should increment forwarderCalls on ForwarderCallExecuted event", async () => {
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.ForwarderCallExecuted.createMockEvent({
-        untrustedForwarder: "0x" + "ff".repeat(20),
-        input: "0xdeadbeef",
-        output: "0xcafebabe",
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ForwarderCallExecuted",
+                params: {
+                  untrustedForwarder: FORWARDER,
+                  input: "0xdeadbeef",
+                  output: "0xcafebabe",
+                },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.ForwarderCallExecuted.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.forwarderCalls).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.forwarderCalls).toBe(1n);
     });
   });
 
   describe("counter isolation", () => {
     it("should only increment the relevant counter for each event type", async () => {
-      let db = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ResourcePayload",
+                params: { tag: "0x" + "01".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 0,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "DiscoveryPayload",
+                params: { tag: "0x" + "02".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 1,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "ExternalPayload",
+                params: { tag: "0x" + "03".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 2,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "ApplicationPayload",
+                params: { tag: "0x" + "04".repeat(32), index: 0n, blob: "0x00" },
+                block: { number: 100, timestamp: 0 },
+                logIndex: 3,
+              },
+              {
+                contract: "ProtocolAdapter",
+                event: "ForwarderCallExecuted",
+                params: {
+                  untrustedForwarder: FORWARDER,
+                  input: "0xdeadbeef",
+                  output: "0xcafebabe",
+                },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 4,
+              },
+            ],
+          },
+        },
+      });
 
-      // Process one of each event type
-      const resourceEvent = ProtocolAdapter.ResourcePayload.createMockEvent({
-        tag: "0x" + "01".repeat(32),
-        index: 0n,
-        blob: "0x00",
-      });
-      db = await ProtocolAdapter.ResourcePayload.processEvent({ event: resourceEvent, mockDb: db });
-
-      const discoveryEvent = ProtocolAdapter.DiscoveryPayload.createMockEvent({
-        tag: "0x" + "02".repeat(32),
-        index: 0n,
-        blob: "0x00",
-      });
-      db = await ProtocolAdapter.DiscoveryPayload.processEvent({
-        event: discoveryEvent,
-        mockDb: db,
-      });
-
-      const externalEvent = ProtocolAdapter.ExternalPayload.createMockEvent({
-        tag: "0x" + "03".repeat(32),
-        index: 0n,
-        blob: "0x00",
-      });
-      db = await ProtocolAdapter.ExternalPayload.processEvent({
-        event: externalEvent,
-        mockDb: db,
-      });
-
-      const applicationEvent = ProtocolAdapter.ApplicationPayload.createMockEvent({
-        tag: "0x" + "04".repeat(32),
-        index: 0n,
-        blob: "0x00",
-      });
-      db = await ProtocolAdapter.ApplicationPayload.processEvent({
-        event: applicationEvent,
-        mockDb: db,
-      });
-
-      const forwarderEvent = ProtocolAdapter.ForwarderCallExecuted.createMockEvent({
-        untrustedForwarder: "0x" + "ff".repeat(20),
-        input: "0xdeadbeef",
-        output: "0xcafebabe",
-      });
-      db = await ProtocolAdapter.ForwarderCallExecuted.processEvent({
-        event: forwarderEvent,
-        mockDb: db,
-      });
-
-      const stats = db.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.resourcePayloads).to.equal(1);
-      expect(stats!.discoveryPayloads).to.equal(1);
-      expect(stats!.externalCalls).to.equal(1);
-      expect(stats!.applicationPayloads).to.equal(1);
-      expect(stats!.forwarderCalls).to.equal(1);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.resourcePayloads).toBe(1n);
+      expect(stats.discoveryPayloads).toBe(1n);
+      expect(stats.externalCalls).toBe(1n);
+      expect(stats.applicationPayloads).toBe(1n);
+      expect(stats.forwarderCalls).toBe(1n);
 
       // Existing counters should remain at 0 (no TransactionExecuted/ActionExecuted processed)
-      expect(stats!.transactions).to.equal(0);
-      expect(stats!.tags).to.equal(0);
-      expect(stats!.actions).to.equal(0);
-      expect(stats!.complianceUnits).to.equal(0);
-      expect(stats!.logicInputs).to.equal(0);
-      expect(stats!.distinctLogics).to.equal(0);
+      expect(stats.transactions).toBe(0n);
+      expect(stats.tags).toBe(0n);
+      expect(stats.actions).toBe(0n);
+      expect(stats.complianceUnits).toBe(0n);
+      expect(stats.logicInputs).toBe(0n);
+      expect(stats.distinctLogics).toBe(0n);
     });
   });
 
   describe("initial state", () => {
     it("should initialize all new counters to zero", async () => {
-      // Process a CommitmentTreeRootAdded event (doesn't touch any new counters)
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = ProtocolAdapter.CommitmentTreeRootAdded.createMockEvent({
-        root: "0x" + "ab".repeat(32),
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "CommitmentTreeRootAdded",
+                params: { root: "0x" + "ab".repeat(32) },
+                block: { number: 100, timestamp: 0 },
+                transaction: { hash: TX_HASH },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
       });
 
-      const result = await ProtocolAdapter.CommitmentTreeRootAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
-
-      const stats = result.entities.Stats.get(STATS_ID);
-      expect(stats).to.not.be.undefined;
-      expect(stats!.externalCalls).to.equal(0);
-      expect(stats!.forwarderCalls).to.equal(0);
-      expect(stats!.resourcePayloads).to.equal(0);
-      expect(stats!.discoveryPayloads).to.equal(0);
-      expect(stats!.applicationPayloads).to.equal(0);
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.externalCalls).toBe(0n);
+      expect(stats.forwarderCalls).toBe(0n);
+      expect(stats.resourcePayloads).toBe(0n);
+      expect(stats.discoveryPayloads).toBe(0n);
+      expect(stats.applicationPayloads).toBe(0n);
       // But commitmentRoots should be 1
-      expect(stats!.commitmentRoots).to.equal(1);
+      expect(stats.commitmentRoots).toBe(1n);
     });
   });
 });

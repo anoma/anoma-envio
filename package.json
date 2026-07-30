@@ -1,44 +1,37 @@
 {
   "name": "anoma-envio",
-  "version": "2.6.0",
-  "description": "Envio Hyperindex indexer for Anoma Protocol Adapter events",
+  "version": "3.0.0",
+  "type": "module",
+  "description": "Envio HyperIndex V3 indexer for Anoma Protocol Adapter events",
   "scripts": {
     "clean": "tsc --clean",
     "build": "tsc --build",
-    "watch": "tsc --watch",
     "codegen": "pnpm envio codegen",
     "dev": "pnpm envio dev",
-    "start": "pnpm envio start",
-    "test": "ts-mocha --timeout 10000 'test/*.test.ts'",
+    "start": "envio start",
+    "test": "vitest run",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts'",
     "typecheck": "tsc --noEmit"
   },
-  "devDependencies": {
-    "@types/chai": "^4.3.20",
-    "@types/mocha": "10.0.6",
-    "@types/node": "20.8.8",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "chai": "4.3.10",
-    "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.1.0",
-    "mocha": "10.2.0",
-    "prettier": "^3.2.0",
-    "ts-mocha": "^10.1.0",
-    "typescript": "5.2.2",
-    "yaml": "^2.8.2"
-  },
   "dependencies": {
-    "envio": "^2.32.3",
+    "envio": "3.2.1",
     "viem": "^2.45.0"
   },
-  "optionalDependencies": {
-    "generated": "link:generated"
+  "devDependencies": {
+    "@types/node": "^22",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.0",
+    "typescript": "5.2.2",
+    "vitest": "^4.0.16",
+    "yaml": "^2.8.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }
