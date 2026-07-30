@@ -135,7 +135,7 @@ type LogicInput @index(fields: ["chainId", "timestamp"]) {
   chainId: BigInt! @index
 
   tagHash: String!
-  verifyingKey: String! # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
+  verifyingKey: String! @index # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
   isConsumed: Boolean!
   proof: String
 
