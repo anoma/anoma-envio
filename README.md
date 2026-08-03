@@ -103,7 +103,7 @@ Select it at runtime via `CONFIG_FILE=config.prod.yaml`. Both files are template
 
 ### `schema.graphql`
 
-Defines the GraphQL entities that get stored and queried. Core entities: `EVMTransaction`, `Transaction`, `Action`, `Tag`, `ComplianceUnit`, `LogicInput`, `Payload`, `CommitmentTreeRoot`, `ForwarderCall`, and `Stats`.
+Defines the GraphQL entities that get stored and queried. Core entities: `EVMTransaction`, `Transaction`, `Action`, `Tag`, `Resource`, `Payload`, `CommitmentTreeRoot`, `KindTableCommitment`, `ForwarderCall`, and `Stats`.
 
 ### Environment Variables
 
@@ -197,7 +197,7 @@ src/
 test/
 ├── graphql.test.ts        # Integration tests against GraphQL endpoint
 ├── decoders/              # Unit tests for calldata and blob decoders
-└── fixtures/              # Real transaction data from Base mainnet
+└── fixtures/              # Synthetic execute() calldata for handler tests
 config.yaml                # Indexer config: contracts, events, chains, addresses
 schema.graphql             # GraphQL entity definitions
 ```
@@ -207,5 +207,7 @@ Event processing order within an EVM transaction:
 1. Payload events (`ResourcePayload`, `DiscoveryPayload`, `ExternalPayload`, `ApplicationPayload`) create `Tag` and `Payload` entities
 2. `ForwarderCallExecuted` records external call data
 3. `CommitmentTreeRootAdded` stores new roots
-4. `ActionExecuted` decodes calldata to create `ComplianceUnit` and `LogicInput` entities
-5. `TransactionExecuted` finalizes the transaction with the authoritative tag list
+4. `ActionExecuted` is authoritative for the action's tags and their logic references, and creates the `Resource` entities; calldata decoding adds the action delta, each consumed resource's commitment tree root, and the app data payload counts
+5. `TransactionExecuted` creates the `Transaction` and relinks the actions and tags emitted before it
+
+`KindTableCommitmentUpdated` is recorded independently of that order; the latest row per chain is the kind table transactions must currently prove against.

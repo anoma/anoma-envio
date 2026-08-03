@@ -277,8 +277,7 @@ describe("DailyStats Counters", () => {
       expect(daily!.transactions).toBe(0n);
       expect(daily!.tags).toBe(0n);
       expect(daily!.actions).toBe(0n);
-      expect(daily!.complianceUnits).toBe(0n);
-      expect(daily!.logicInputs).toBe(0n);
+      expect(daily!.resources).toBe(0n);
     });
   });
 
@@ -344,8 +343,7 @@ describe("DailyStats Counters", () => {
       expect(daily!.transactions).toBe(0n);
       expect(daily!.tags).toBe(0n);
       expect(daily!.actions).toBe(0n);
-      expect(daily!.complianceUnits).toBe(0n);
-      expect(daily!.logicInputs).toBe(0n);
+      expect(daily!.resources).toBe(0n);
       // But commitmentRoots should be 1
       expect(daily!.commitmentRoots).toBe(1n);
     });

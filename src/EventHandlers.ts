@@ -4,13 +4,14 @@
  * PA-EVM Event Order (within same EVM transaction), per pa-evm ProtocolAdapter._execute:
  * 1. ForwarderCallExecuted (per external payload, before that resource's payload events)
  * 2. ResourcePayload/DiscoveryPayload/ExternalPayload/ApplicationPayload (per resource)
- * 3. ActionExecuted (once per action, after its compliance units)
+ * 3. ActionExecuted (once per action)
  * 4. CommitmentTreeRootAdded (once, after all actions, when commitments were added)
  * 5. TransactionExecuted (once at the end)
  *
- * Tag Index Convention (from TransactionExecuted):
- * - Even indices (0, 2, 4...): consumed resources (nullifiers)
- * - Odd indices (1, 3, 5...): created resources (commitments)
+ * ActionExecuted is the authoritative source of tags: it carries the consumed nullifiers and
+ * created commitments as separate arrays, each paired with its logic reference. TransactionExecuted
+ * carries only the transaction id, so entities created before it hold the EVM-transaction
+ * correlation key and are relinked when it arrives.
  */
 
 import { indexer } from "envio";
@@ -20,9 +21,10 @@ import type {
   Transaction,
   Tag,
   Action,
-  LogicInput,
+  Resource,
   Payload,
   CommitmentTreeRoot,
+  KindTableCommitment,
   ForwarderCall,
   OwnershipTransferred,
   ProtocolAdapterPaused,
@@ -32,9 +34,9 @@ import type {
 
 import { decodeExecuteCalldata, isExecuteCalldata } from "./decoders/ActionDecoder.js";
 import { DeletionCriterion } from "./types/index.js";
-import type { Action as DecodedAction } from "./types/index.js";
+import type { Action as DecodedAction, AppData } from "./types/index.js";
 import { BoundedCache } from "./utils/BoundedCache.js";
-import { DECODED_CALLDATA_CACHE_MAX_SIZE, isConsumedIndex, getUTCDay } from "./constants.js";
+import { DECODED_CALLDATA_CACHE_MAX_SIZE, getUTCDay } from "./constants.js";
 
 // ============================================
 // Helper Functions
@@ -78,17 +80,10 @@ function createTagId(chainId: number, tagHash: string): string {
 }
 
 /**
- * Creates a compliance unit identifier.
+ * Creates a resource identifier from its action and position in the action's tag order.
  */
-function createComplianceUnitId(actionId: string, index: number): string {
-  return `${actionId}_compliance_${index}`;
-}
-
-/**
- * Creates a logic input identifier.
- */
-function createLogicInputId(actionId: string, index: number): string {
-  return `${actionId}_logic_${index}`;
+function createResourceId(actionId: string, index: number): string {
+  return `${actionId}_resource_${index}`;
 }
 
 // ============================================
@@ -109,14 +104,7 @@ const decodedCalldataCache = new BoundedCache<string, DecodedCalldata>(
 /**
  * Get decoded transaction data from cache or decode from calldata.
  */
-function getDecodedTransaction(
-  txHash: string,
-  input: string | undefined
-): {
-  actions: DecodedAction[];
-  deltaProof: string;
-  aggregationProof: string;
-} | null {
+function getDecodedTransaction(txHash: string, input: string | undefined): DecodedCalldata | null {
   // Check cache first
   const cached = decodedCalldataCache.get(txHash);
   if (cached) {
@@ -153,20 +141,30 @@ function clearDecodedCache(txHash: string): void {
 }
 
 // ============================================
-// Pending Action IDs Cache
+// Pending Entity Cache
 // ============================================
-// Tracks action entity IDs created by ActionExecuted so that the subsequent
-// TransactionExecuted handler can retroactively update their transaction_id
-// from the temporary evmTxId to the unique txId (which includes logIndex).
-// Keyed by evmTxId; consumed and cleared on each TransactionExecuted.
+// Actions and tags are created before TransactionExecuted arrives, so they are written with the
+// EVM-transaction correlation key as their transaction_id. This tracks what to relink once the
+// real Transaction id (which includes the logIndex) is known. Keyed by evmTxId; consumed and
+// cleared on each TransactionExecuted.
 //
-// Stores a Map<actionId, arrivalIndex> per EVM tx so that (a) a preload double-run of
-// ActionExecuted for the same action reuses the same key (idempotent), and (b) the k-th
-// distinct ActionExecuted maps to decoded.actions[k] — the contract emits ActionExecuted
-// once per action in calldata order, so arrival order equals decoded-action order.
-const pendingActionIds = new BoundedCache<string, Map<string, number>>(
-  DECODED_CALLDATA_CACHE_MAX_SIZE
-);
+// `actions` is a Map<actionId, arrivalIndex> so that (a) a preload double-run of ActionExecuted
+// for the same action reuses the same key (idempotent), and (b) the k-th distinct ActionExecuted
+// maps to decoded.actions[k] — the contract emits ActionExecuted once per action in calldata
+// order, so arrival order equals decoded-action order.
+type PendingEntities = { actions: Map<string, number>; tags: Set<string> };
+
+const pendingEntities = new BoundedCache<string, PendingEntities>(DECODED_CALLDATA_CACHE_MAX_SIZE);
+
+function getPendingEntities(evmTxId: string): PendingEntities {
+  const existing = pendingEntities.get(evmTxId);
+  if (existing) {
+    return existing;
+  }
+  const created: PendingEntities = { actions: new Map<string, number>(), tags: new Set<string>() };
+  pendingEntities.set(evmTxId, created);
+  return created;
+}
 
 // ============================================
 // Stats Singleton
@@ -188,8 +186,7 @@ async function getOrCreateStats(context: EvmOnEventContext): Promise<Stats> {
     tagsConsumed: 0n,
     tagsCreated: 0n,
     actions: 0n,
-    complianceUnits: 0n,
-    logicInputs: 0n,
+    resources: 0n,
     commitmentRoots: 0n,
     distinctLogics: 0n,
     externalCalls: 0n,
@@ -219,8 +216,7 @@ async function getOrCreateChainStats(
     tagsConsumed: 0n,
     tagsCreated: 0n,
     actions: 0n,
-    complianceUnits: 0n,
-    logicInputs: 0n,
+    resources: 0n,
     commitmentRoots: 0n,
     distinctLogics: 0n,
     externalCalls: 0n,
@@ -253,8 +249,7 @@ async function incrementAllStats(
     tagsConsumed?: number;
     tagsCreated?: number;
     actions?: number;
-    complianceUnits?: number;
-    logicInputs?: number;
+    resources?: number;
     commitmentRoots?: number;
     distinctLogics?: number;
     chainDistinctLogics?: number;
@@ -280,8 +275,7 @@ async function incrementAllStats(
           tagsConsumed: 0n,
           tagsCreated: 0n,
           actions: 0n,
-          complianceUnits: 0n,
-          logicInputs: 0n,
+          resources: 0n,
           commitmentRoots: 0n,
           externalCalls: 0n,
           forwarderCalls: 0n,
@@ -305,8 +299,7 @@ async function incrementAllStats(
           tagsConsumed: 0n,
           tagsCreated: 0n,
           actions: 0n,
-          complianceUnits: 0n,
-          logicInputs: 0n,
+          resources: 0n,
           commitmentRoots: 0n,
           externalCalls: 0n,
           forwarderCalls: 0n,
@@ -326,8 +319,7 @@ async function incrementAllStats(
     tagsConsumed: stats.tagsConsumed + BigInt(increments.tagsConsumed ?? 0),
     tagsCreated: stats.tagsCreated + BigInt(increments.tagsCreated ?? 0),
     actions: stats.actions + BigInt(increments.actions ?? 0),
-    complianceUnits: stats.complianceUnits + BigInt(increments.complianceUnits ?? 0),
-    logicInputs: stats.logicInputs + BigInt(increments.logicInputs ?? 0),
+    resources: stats.resources + BigInt(increments.resources ?? 0),
     commitmentRoots: stats.commitmentRoots + BigInt(increments.commitmentRoots ?? 0),
     distinctLogics: stats.distinctLogics + BigInt(increments.distinctLogics ?? 0),
     externalCalls: stats.externalCalls + BigInt(increments.externalCalls ?? 0),
@@ -346,8 +338,7 @@ async function incrementAllStats(
     tagsConsumed: daily.tagsConsumed + BigInt(increments.tagsConsumed ?? 0),
     tagsCreated: daily.tagsCreated + BigInt(increments.tagsCreated ?? 0),
     actions: daily.actions + BigInt(increments.actions ?? 0),
-    complianceUnits: daily.complianceUnits + BigInt(increments.complianceUnits ?? 0),
-    logicInputs: daily.logicInputs + BigInt(increments.logicInputs ?? 0),
+    resources: daily.resources + BigInt(increments.resources ?? 0),
     commitmentRoots: daily.commitmentRoots + BigInt(increments.commitmentRoots ?? 0),
     externalCalls: daily.externalCalls + BigInt(increments.externalCalls ?? 0),
     forwarderCalls: daily.forwarderCalls + BigInt(increments.forwarderCalls ?? 0),
@@ -365,8 +356,7 @@ async function incrementAllStats(
     tagsConsumed: chainStats.tagsConsumed + BigInt(increments.tagsConsumed ?? 0),
     tagsCreated: chainStats.tagsCreated + BigInt(increments.tagsCreated ?? 0),
     actions: chainStats.actions + BigInt(increments.actions ?? 0),
-    complianceUnits: chainStats.complianceUnits + BigInt(increments.complianceUnits ?? 0),
-    logicInputs: chainStats.logicInputs + BigInt(increments.logicInputs ?? 0),
+    resources: chainStats.resources + BigInt(increments.resources ?? 0),
     commitmentRoots: chainStats.commitmentRoots + BigInt(increments.commitmentRoots ?? 0),
     distinctLogics: chainStats.distinctLogics + BigInt(increments.chainDistinctLogics ?? 0),
     externalCalls: chainStats.externalCalls + BigInt(increments.externalCalls ?? 0),
@@ -386,8 +376,7 @@ async function incrementAllStats(
     tagsConsumed: chainDaily.tagsConsumed + BigInt(increments.tagsConsumed ?? 0),
     tagsCreated: chainDaily.tagsCreated + BigInt(increments.tagsCreated ?? 0),
     actions: chainDaily.actions + BigInt(increments.actions ?? 0),
-    complianceUnits: chainDaily.complianceUnits + BigInt(increments.complianceUnits ?? 0),
-    logicInputs: chainDaily.logicInputs + BigInt(increments.logicInputs ?? 0),
+    resources: chainDaily.resources + BigInt(increments.resources ?? 0),
     commitmentRoots: chainDaily.commitmentRoots + BigInt(increments.commitmentRoots ?? 0),
     externalCalls: chainDaily.externalCalls + BigInt(increments.externalCalls ?? 0),
     forwarderCalls: chainDaily.forwarderCalls + BigInt(increments.forwarderCalls ?? 0),
@@ -403,8 +392,9 @@ async function incrementAllStats(
 // ============================================
 // TransactionExecuted Handler
 // ============================================
-// This event fires LAST in the transaction, after all payload events.
-// It provides the authoritative list of tags and their consumed/created status.
+// This event fires LAST in the transaction, after every action and payload event. It carries only
+// the transaction id, so its job is to create the Transaction entity and relink the actions and
+// tags that earlier handlers wrote against the EVM-transaction correlation key.
 
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "TransactionExecuted" },
@@ -438,8 +428,7 @@ indexer.onEvent(
       blockNumber: BigInt(event.block.number),
       timestamp: BigInt(event.block.timestamp),
       chainId: BigInt(event.chainId),
-      tagHashes: event.params.tags,
-      logicRefs: event.params.logicRefs,
+      transactionId: event.params.transactionId,
       deltaProof: decoded?.deltaProof,
       aggregationProof: decoded?.aggregationProof,
       evmTransaction_id: evmTxId,
@@ -447,22 +436,124 @@ indexer.onEvent(
 
     context.Transaction.set(txEntity);
 
-    // Retroactively update Actions created by earlier ActionExecuted events
-    // so their transaction_id points to this Transaction (not the temporary evmTxId).
-    // The guard (action.transaction_id === evmTxId) ensures that if the preload pass runs
-    // this handler twice, already-linked actions are not re-linked to the wrong txId.
-    const actionIds = [...(pendingActionIds.get(evmTxId) ?? new Map<string, number>()).keys()];
-    const actions = await Promise.all(actionIds.map((id) => context.Action.get(id)));
-    for (const action of actions) {
-      if (action && action.transaction_id === evmTxId) {
-        context.Action.set({ ...action, transaction_id: txId });
-      }
-    }
-    pendingActionIds.delete(evmTxId);
+    // Relink the actions and tags written by earlier handlers so their transaction_id points to
+    // this Transaction instead of the temporary evmTxId. The guard (=== evmTxId) makes a preload
+    // double-run idempotent: already-linked entities are not re-linked to the wrong txId.
+    const pending = pendingEntities.get(evmTxId);
+    if (pending) {
+      const [actions, tags] = await Promise.all([
+        Promise.all([...pending.actions.keys()].map((id) => context.Action.get(id))),
+        Promise.all([...pending.tags].map((id) => context.Tag.get(id))),
+      ]);
 
-    // Batch-fetch all existing tags and logicRefs in parallel (eliminates N+1 reads)
-    const tagIds = event.params.tags.map((tagHash) => createTagId(event.chainId, tagHash));
-    const uniqueLogicRefs = [...new Set(event.params.logicRefs)];
+      for (const action of actions) {
+        if (action && action.transaction_id === evmTxId) {
+          context.Action.set({ ...action, transaction_id: txId });
+        }
+      }
+      for (const tag of tags) {
+        if (tag && tag.transaction_id === evmTxId) {
+          context.Tag.set({ ...tag, transaction_id: txId });
+        }
+      }
+
+      pendingEntities.delete(evmTxId);
+    }
+
+    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+      transactions: 1,
+    });
+
+    // Clear the cache after processing is complete
+    clearDecodedCache(txHash);
+  }
+);
+
+// ============================================
+// ActionExecuted Handler
+// ============================================
+// ActionExecuted fires BEFORE TransactionExecuted but AFTER payload events. It is authoritative
+// for which tags the action consumed and created, and for their logic references. Calldata
+// decoding adds what the event cannot carry: the action delta, the commitment tree root each
+// consumed resource was proven against, and the app data payload counts.
+
+indexer.onEvent(
+  { contract: "ProtocolAdapter", event: "ActionExecuted" },
+  async ({ event, context }) => {
+    const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
+    const txHash = event.transaction.hash;
+    // Use evmTxId + actionTreeRoot for unique action ID since multiple actions can be in one tx
+    const actionId = `${evmTxId}_${event.params.actionTreeRoot}`;
+
+    const nullifiers = event.params.nullifiers;
+    const commitments = event.params.commitments;
+    const consumedLogicRefs = event.params.consumedLogicRefs;
+    const createdLogicRefs = event.params.createdLogicRefs;
+
+    // Try to decode calldata to get action details
+    const decoded = getDecodedTransaction(txHash, event.transaction.input);
+
+    // Map this ActionExecuted to its position among the EVM tx's actions. The contract emits
+    // ActionExecuted once per action in calldata order, so the k-th distinct ActionExecuted
+    // corresponds to decoded.actions[k]. The index is memoised per actionId so a preload
+    // double-run is idempotent, and TransactionExecuted still relinks by iterating the keys.
+    const pending = getPendingEntities(evmTxId);
+    let actionIndex = pending.actions.get(actionId);
+    if (actionIndex === undefined) {
+      actionIndex = pending.actions.size;
+      pending.actions.set(actionId, actionIndex);
+    }
+
+    if (decoded && actionIndex >= decoded.actions.length) {
+      console.warn(
+        `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
+          `(calldata decoded ${decoded.actions.length} action(s)); resource details omitted.`
+      );
+    }
+    const decodedAction: DecodedAction | null =
+      decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
+
+    // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
+    const actionEntity: Action = {
+      id: actionId,
+      index: actionIndex,
+      actionTreeRoot: event.params.actionTreeRoot,
+      actionTagCount: nullifiers.length + commitments.length,
+      consumedCount: nullifiers.length,
+      createdCount: commitments.length,
+      blockNumber: BigInt(event.block.number),
+      chainId: BigInt(event.chainId),
+      timestamp: BigInt(event.block.timestamp),
+      deltaX: decodedAction ? decodedAction.delta.x.toString() : undefined,
+      deltaY: decodedAction ? decodedAction.delta.y.toString() : undefined,
+      evmTxId: evmTxId,
+      transaction_id: evmTxId,
+    };
+
+    context.Action.set(actionEntity);
+
+    // The canonical tag order is the action tree leaf order: consumed nullifiers followed by
+    // created commitments. Tag.index and Resource.index both follow it.
+    const orderedTags = [
+      ...nullifiers.map((tagHash, i) => ({
+        tagHash,
+        logicRef: consumedLogicRefs[i],
+        isConsumed: true,
+        appData: decodedAction?.consumed[i]?.appData,
+        commitmentTreeRoot: decodedAction?.consumed[i]?.commitmentTreeRoot,
+      })),
+      ...commitments.map((tagHash, i) => ({
+        tagHash,
+        logicRef: createdLogicRefs[i],
+        isConsumed: false,
+        appData: decodedAction?.created[i]?.appData,
+        commitmentTreeRoot: undefined,
+      })),
+    ];
+
+    // Batch-fetch existing tags and logic-ref trackers (eliminates N+1 reads)
+    const tagIds = orderedTags.map((t) => createTagId(event.chainId, t.tagHash));
+    const uniqueLogicRefs = [...new Set(orderedTags.map((t) => t.logicRef))];
     const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
     const [existingTags, existingLogicRefs, existingChainLogicRefs] = await Promise.all([
       Promise.all(tagIds.map((id) => context.Tag.get(id))),
@@ -470,45 +561,55 @@ indexer.onEvent(
       Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
     ]);
 
-    // Update/Create Tag entities for each tag hash
-    // Tags are in alternating order: consumed (nullifier), created (commitment), ...
-    for (let index = 0; index < event.params.tags.length; index++) {
-      const tagHash = event.params.tags[index];
-      const isConsumed = isConsumedIndex(index);
+    for (let index = 0; index < orderedTags.length; index++) {
+      const { tagHash, logicRef, isConsumed, appData, commitmentTreeRoot } = orderedTags[index];
       const tagId = tagIds[index];
-      const logicRef = event.params.logicRefs[index];
+      const resourceId = createResourceId(actionId, index);
       const existingTag = existingTags[index];
 
-      if (existingTag) {
-        // Update existing tag with authoritative isConsumed and index from TransactionExecuted
-        context.Tag.set({
-          ...existingTag,
-          index: index,
-          isConsumed: isConsumed,
-          transaction_id: txId,
-          logicRef: logicRef || existingTag.logicRef,
-          logicInput_id: existingTag.logicInput_id,
-          complianceUnit_id: existingTag.complianceUnit_id,
-        });
-      } else {
-        // Create new tag (ResourcePayload may not have fired yet or at all)
-        context.Tag.set({
+      // A payload event may already have created this tag with placeholder values; the event's
+      // index, side and logic reference are authoritative.
+      context.Tag.set({
+        ...(existingTag ?? {
           id: tagId,
           tagHash: tagHash,
-          index: index,
-          isConsumed: isConsumed,
           blockNumber: BigInt(event.block.number),
           timestamp: BigInt(event.block.timestamp),
           chainId: BigInt(event.chainId),
-          transaction_id: txId,
-          logicRef: logicRef || undefined,
-          logicInput_id: undefined,
-          complianceUnit_id: undefined,
-        });
+          transaction_id: evmTxId,
+        }),
+        index: index,
+        isConsumed: isConsumed,
+        logicRef: logicRef,
+        resource_id: resourceId,
+      });
+      pending.tags.add(tagId);
+
+      const resourceEntity: Resource = {
+        id: resourceId,
+        index: index,
+        timestamp: BigInt(event.block.timestamp),
+        chainId: BigInt(event.chainId),
+        tagHash: tagHash,
+        logicRef: logicRef,
+        isConsumed: isConsumed,
+        commitmentTreeRoot: commitmentTreeRoot,
+        resourcePayloadCount: appData?.resourcePayload.length,
+        discoveryPayloadCount: appData?.discoveryPayload.length,
+        externalPayloadCount: appData?.externalPayload.length,
+        applicationPayloadCount: appData?.applicationPayload.length,
+        action_id: actionId,
+        tag_id: tagId,
+      };
+
+      context.Resource.set(resourceEntity);
+
+      if (appData) {
+        writeImmediateExternalPayloads(context, resourceId, tagId, tagHash, appData);
       }
     }
 
-    // Track distinct logicRefs (already batch-fetched above) — global and per-chain
+    // Track distinct logic references — global and per-chain
     let newLogicCount = 0;
     let newChainLogicCount = 0;
     for (let i = 0; i < uniqueLogicRefs.length; i++) {
@@ -526,7 +627,7 @@ indexer.onEvent(
         context.ChainLogicRef.set({
           id: chainLogicRefIds[i],
           chainId: BigInt(event.chainId),
-          verifyingKey: uniqueLogicRefs[i],
+          logicRef: uniqueLogicRefs[i],
           firstSeenBlock: BigInt(event.block.number),
           firstSeenTimestamp: BigInt(event.block.timestamp),
           firstSeenTxHash: txHash,
@@ -535,217 +636,55 @@ indexer.onEvent(
       }
     }
 
-    // Update global stats
-    const totalTags = event.params.tags.length;
-    const consumedCount = Math.floor(totalTags / 2);
-    const createdCount = totalTags - consumedCount;
-
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
-      transactions: 1,
-      tags: totalTags,
-      tagsConsumed: consumedCount,
-      tagsCreated: createdCount,
+      actions: 1,
+      resources: orderedTags.length,
+      tags: orderedTags.length,
+      tagsConsumed: nullifiers.length,
+      tagsCreated: commitments.length,
       distinctLogics: newLogicCount,
       chainDistinctLogics: newChainLogicCount,
     });
-
-    // Clear the cache after processing is complete
-    clearDecodedCache(txHash);
   }
 );
 
-// ============================================
-// ActionExecuted Handler
-// ============================================
-// ActionExecuted fires BEFORE TransactionExecuted but AFTER payload events.
-// We decode the calldata here to create ComplianceUnit and LogicInput entities.
-
-indexer.onEvent(
-  { contract: "ProtocolAdapter", event: "ActionExecuted" },
-  async ({ event, context }) => {
-    const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
-    const txHash = event.transaction.hash;
-    // Use evmTxId + actionTreeRoot for unique action ID since multiple actions can be in one tx
-    const actionId = `${evmTxId}_${event.params.actionTreeRoot}`;
-
-    // Try to decode calldata to get action details
-    const decoded = getDecodedTransaction(txHash, event.transaction.input);
-
-    // Map this ActionExecuted to its position among the EVM tx's actions. The contract
-    // emits ActionExecuted once per action in calldata order, so the k-th distinct
-    // ActionExecuted corresponds to decoded.actions[k]. The index is memoised per actionId
-    // so a preload double-run is idempotent, and TransactionExecuted still links every
-    // action by iterating the map's keys.
-    const seenActions = pendingActionIds.get(evmTxId) ?? new Map<string, number>();
-    let actionIndex = seenActions.get(actionId);
-    if (actionIndex === undefined) {
-      actionIndex = seenActions.size;
-      seenActions.set(actionId, actionIndex);
-      pendingActionIds.set(evmTxId, seenActions);
+/**
+ * Writes Payload entities for the external payloads that never produce an event.
+ *
+ * The protocol adapter only emits payload events for blobs marked `Never`; an `Immediately` blob
+ * is consumed for its forwarder call and then dropped. Taking those from calldata keeps the
+ * external-call record complete without duplicating the ones ExternalPayload already covers.
+ */
+function writeImmediateExternalPayloads(
+  context: EvmOnEventContext,
+  resourceId: string,
+  tagId: string,
+  tagHash: string,
+  appData: AppData
+): void {
+  for (let index = 0; index < appData.externalPayload.length; index++) {
+    const blob = appData.externalPayload[index];
+    if (blob.deletionCriterion !== DeletionCriterion.Immediately) {
+      continue;
     }
 
-    // Select this action's decoded data by position. (The previous tag-count match
-    // mis-assigned data whenever two actions in one tx shared the same tag count.)
-    if (decoded && actionIndex >= decoded.actions.length) {
-      console.warn(
-        `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
-          `(calldata decoded ${decoded.actions.length} action(s)); compliance/logic entities skipped.`
-      );
-    }
-    const decodedAction: DecodedAction | null =
-      decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
-
-    // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
-    const actionEntity: Action = {
-      id: actionId,
-      index: actionIndex,
-      actionTreeRoot: event.params.actionTreeRoot,
-      actionTagCount: Number(event.params.actionTagCount),
-      blockNumber: BigInt(event.block.number),
-      chainId: BigInt(event.chainId),
-      timestamp: BigInt(event.block.timestamp),
-      evmTxId: evmTxId,
-      transaction_id: evmTxId,
-    };
-
-    context.Action.set(actionEntity);
-
-    // Create ComplianceUnit and LogicInput entities from decoded action
-    if (decodedAction) {
-      // Batch-fetch all tags needed for compliance units and logic inputs
-      const cuTagIds = decodedAction.complianceVerifierInputs.flatMap((cu) => [
-        createTagId(event.chainId, cu.instance.consumed.nullifier),
-        createTagId(event.chainId, cu.instance.created.commitment),
-      ]);
-      const liTagIds = decodedAction.logicVerifierInputs.map((li) =>
-        createTagId(event.chainId, li.tag)
-      );
-      const allTagIds = [...cuTagIds, ...liTagIds];
-      const allTags = await Promise.all(allTagIds.map((id) => context.Tag.get(id)));
-
-      // Split results back into compliance unit tags and logic input tags
-      const cuTags = allTags.slice(0, cuTagIds.length);
-      const liTags = allTags.slice(cuTagIds.length);
-
-      for (let cuIndex = 0; cuIndex < decodedAction.complianceVerifierInputs.length; cuIndex++) {
-        const cu = decodedAction.complianceVerifierInputs[cuIndex];
-        const complianceUnitId = createComplianceUnitId(actionId, cuIndex);
-
-        const consumedTagId = cuTagIds[cuIndex * 2];
-        const createdTagId = cuTagIds[cuIndex * 2 + 1];
-        const consumedTag = cuTags[cuIndex * 2];
-        const createdTag = cuTags[cuIndex * 2 + 1];
-
-        context.ComplianceUnit.set({
-          id: complianceUnitId,
-          index: cuIndex,
-          timestamp: BigInt(event.block.timestamp),
-          chainId: BigInt(event.chainId),
-          proof: cu.proof || undefined,
-          consumedNullifier: cu.instance.consumed.nullifier,
-          consumedLogicRef: cu.instance.consumed.logicRef,
-          consumedCommitmentTreeRoot: cu.instance.consumed.commitmentTreeRoot,
-          createdCommitment: cu.instance.created.commitment,
-          createdLogicRef: cu.instance.created.logicRef,
-          unitDeltaX: cu.instance.unitDeltaX,
-          unitDeltaY: cu.instance.unitDeltaY,
-          action_id: actionId,
-          consumedTag_id: consumedTag ? consumedTagId : undefined,
-          createdTag_id: createdTag ? createdTagId : undefined,
-        });
-
-        // Update tags with compliance unit link if they exist
-        if (consumedTag) {
-          context.Tag.set({ ...consumedTag, complianceUnit_id: complianceUnitId });
-        }
-        if (createdTag) {
-          context.Tag.set({ ...createdTag, complianceUnit_id: complianceUnitId });
-        }
-      }
-
-      // Consumed vs created is authoritative from the compliance units' nullifier set —
-      // logicVerifierInputs are looked up by tag on-chain and are not guaranteed to be in
-      // interleaved consumed/created order, so position parity (isConsumedIndex) is unreliable.
-      const consumedNullifiers = new Set(
-        decodedAction.complianceVerifierInputs.map((cu) =>
-          cu.instance.consumed.nullifier.toLowerCase()
-        )
-      );
-
-      // Create LogicInput entities from decoded action
-      for (let liIndex = 0; liIndex < decodedAction.logicVerifierInputs.length; liIndex++) {
-        const li = decodedAction.logicVerifierInputs[liIndex];
-        const logicInputId = createLogicInputId(actionId, liIndex);
-        const isConsumed = consumedNullifiers.has(li.tag.toLowerCase());
-        const tagId = liTagIds[liIndex];
-        const existingTag = liTags[liIndex];
-
-        const logicEntity: LogicInput = {
-          id: logicInputId,
-          index: liIndex,
-          timestamp: BigInt(event.block.timestamp),
-          chainId: BigInt(event.chainId),
-          tagHash: li.tag,
-          verifyingKey: li.verifyingKey,
-          isConsumed: isConsumed,
-          proof: li.proof || undefined,
-          resourcePayloadCount: li.appData.resourcePayload.length,
-          discoveryPayloadCount: li.appData.discoveryPayload.length,
-          externalPayloadCount: li.appData.externalPayload.length,
-          applicationPayloadCount: li.appData.applicationPayload.length,
-          action_id: actionId,
-          tag_id: existingTag ? tagId : undefined,
-        };
-
-        context.LogicInput.set(logicEntity);
-
-        // Create Payload entities for external payloads from decoded calldata
-        for (let epIdx = 0; epIdx < li.appData.externalPayload.length; epIdx++) {
-          const ep = li.appData.externalPayload[epIdx];
-          const payloadId = `${logicInputId}_externalCall_${epIdx}`;
-
-          context.Payload.set({
-            id: payloadId,
-            category: "externalCall",
-            tagHash: li.tag,
-            index: epIdx,
-            blob: ep.blob,
-            deletionCriterion:
-              ep.deletionCriterion === DeletionCriterion.Immediately ? "immediately" : "never",
-            tag_id: tagId,
-          });
-        }
-
-        // Update tag with logic input link if it exists
-        if (existingTag) {
-          const updatedTag: Tag = {
-            ...existingTag,
-            logicInput_id: logicInputId,
-          };
-          context.Tag.set(updatedTag);
-        }
-      }
-
-      // Update stats for compliance units and logic inputs from this action
-      await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
-        actions: 1,
-        complianceUnits: decodedAction.complianceVerifierInputs.length,
-        logicInputs: decodedAction.logicVerifierInputs.length,
-      });
-    } else {
-      // No decoded action data - just count the action itself
-      await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
-        actions: 1,
-      });
-    }
+    context.Payload.set({
+      id: `${resourceId}_externalCall_${index}`,
+      category: "externalCall",
+      tagHash: tagHash,
+      index: index,
+      blob: blob.blob,
+      deletionCriterion: "immediately",
+      tag_id: tagId,
+    });
   }
-);
+}
 
 // ============================================
 // ResourcePayload Handler
 // ============================================
-// ResourcePayload fires BEFORE TransactionExecuted.
-// Creates a Payload entity with category "resource" and creates/updates the Tag entity.
+// ResourcePayload fires BEFORE ActionExecuted.
+// Creates a Payload entity with category "resource" and creates the Tag entity if it is new.
 
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ResourcePayload" },
@@ -762,28 +701,23 @@ indexer.onEvent(
       resourcePayloads: 1,
     });
 
-    // Create/update Tag entity (without blob fields — blob data lives in Payload)
+    // Create the Tag entity if ActionExecuted has not yet supplied the authoritative values.
     const existingTag = await context.Tag.get(tagId);
-
-    if (existingTag) {
-      // Tag already exists — no blob fields to update anymore
-      // logicRef comes from TransactionExecuted, not from blob decoding
-    } else {
-      // Create new tag - isConsumed will be updated by TransactionExecuted
+    if (!existingTag) {
       const tagEntity: Tag = {
         id: tagId,
         tagHash: event.params.tag,
-        index: 0, // Placeholder - will be set by TransactionExecuted
-        isConsumed: false, // Placeholder - will be set correctly by TransactionExecuted
+        index: 0, // Placeholder — ActionExecuted sets the canonical position
+        isConsumed: false, // Placeholder — ActionExecuted sets the side
         blockNumber: BigInt(event.block.number),
         timestamp: BigInt(event.block.timestamp),
         chainId: BigInt(event.chainId),
         transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
-        logicRef: undefined, // Will be set by TransactionExecuted
-        logicInput_id: undefined,
-        complianceUnit_id: undefined,
+        logicRef: undefined, // Will be set by ActionExecuted
+        resource_id: undefined,
       };
       context.Tag.set(tagEntity);
+      getPendingEntities(evmTxId).tags.add(tagId);
     }
   }
 );
@@ -816,7 +750,8 @@ function createPayloadEntity(
     tagHash: event.params.tag,
     index: Number(event.params.index),
     blob: event.params.blob,
-    deletionCriterion: undefined, // Would need to decode from blob structure
+    // The protocol adapter only emits payload events for blobs marked `Never`.
+    deletionCriterion: "never",
     tag_id: tagId,
   };
 }
@@ -882,6 +817,32 @@ indexer.onEvent(
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       commitmentRoots: 1,
     });
+  }
+);
+
+// ============================================
+// KindTableCommitmentUpdated Handler
+// ============================================
+// Emitted by initialize() with the empty-table commitment and by every setKindTableCommitment
+// call, so the latest row per chain is the kind table transactions must currently prove against.
+
+indexer.onEvent(
+  { contract: "ProtocolAdapter", event: "KindTableCommitmentUpdated" },
+  // eslint-disable-next-line @typescript-eslint/require-await -- onEvent handlers are typed => Promise<void>; this one does only sync entity writes
+  async ({ event, context }) => {
+    const eventId = createEventId(event);
+
+    const entity: KindTableCommitment = {
+      id: eventId,
+      kindTableCommitment: event.params.kindTableCommitment,
+      blockNumber: BigInt(event.block.number),
+      logIndex: event.logIndex,
+      txHash: event.transaction.hash,
+      timestamp: BigInt(event.block.timestamp),
+      chainId: BigInt(event.chainId),
+    };
+
+    context.KindTableCommitment.set(entity);
   }
 );
 

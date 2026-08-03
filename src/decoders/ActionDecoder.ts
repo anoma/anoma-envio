@@ -1,8 +1,8 @@
 /**
  * Decoder for ProtocolAdapter.execute() transaction calldata.
  *
- * This decoder extracts the full Transaction structure from calldata,
- * including Actions with their ComplianceVerifierInputs and LogicVerifierInputs.
+ * This decoder extracts the full Transaction structure from calldata, including each Action with
+ * the public data of the resources it consumes and creates.
  *
  * The execute function signature is:
  * execute(Transaction calldata transaction)
@@ -16,26 +16,44 @@
  *
  * And Action is:
  * struct Action {
- *     Logic.VerifierInput[] logicVerifierInputs;
- *     Compliance.VerifierInput[] complianceVerifierInputs;
+ *     Consumed[] consumed;
+ *     Created[] created;
+ *     Delta.Point delta;
+ *     bytes32 actionTreeRoot;
  * }
  */
 
-import { decodeFunctionData, type Hex, type Abi } from "viem";
-import { EXECUTE_SELECTOR } from "../constants.js";
+import { decodeFunctionData, toFunctionSelector, type Hex, type Abi } from "viem";
 import type {
   Transaction,
   Action,
-  LogicVerifierInput,
-  ComplianceVerifierInput,
+  Consumed,
+  Created,
   AppData,
   ExpirableBlob,
 } from "../types/index.js";
 import { DeletionCriterion } from "../types/index.js";
 
-// ABI for the execute function with nested structs
-// Based on the full signature from the contract:
-// execute((((bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]),bytes)[],(bytes,((bytes32,bytes32,bytes32),(bytes32,bytes32),bytes32,bytes32))[])[],bytes,bytes))
+/** The four payload slots of Logic.AppData, each a list of `(uint8 deletionCriterion, bytes blob)`. */
+const APP_DATA_COMPONENT = {
+  name: "appData",
+  type: "tuple",
+  components: (
+    ["resourcePayload", "discoveryPayload", "externalPayload", "applicationPayload"] as const
+  ).map((name) => ({
+    name,
+    type: "tuple[]",
+    components: [
+      { name: "deletionCriterion", type: "uint8" },
+      { name: "blob", type: "bytes" },
+    ],
+  })),
+} as const;
+
+// ABI for the execute function with nested structs. The canonical signature is
+// execute((((bytes32,bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]))[],
+//          (bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]))[],
+//          (uint256,uint256),bytes32)[],bytes,bytes))
 export const EXECUTE_ABI: Abi = [
   {
     name: "execute",
@@ -51,84 +69,33 @@ export const EXECUTE_ABI: Abi = [
             type: "tuple[]",
             components: [
               {
-                name: "logicVerifierInputs",
+                name: "consumed",
                 type: "tuple[]",
                 components: [
-                  { name: "tag", type: "bytes32" },
-                  { name: "verifyingKey", type: "bytes32" },
-                  {
-                    name: "appData",
-                    type: "tuple",
-                    components: [
-                      {
-                        name: "resourcePayload",
-                        type: "tuple[]",
-                        components: [
-                          { name: "deletionCriterion", type: "uint8" },
-                          { name: "blob", type: "bytes" },
-                        ],
-                      },
-                      {
-                        name: "discoveryPayload",
-                        type: "tuple[]",
-                        components: [
-                          { name: "deletionCriterion", type: "uint8" },
-                          { name: "blob", type: "bytes" },
-                        ],
-                      },
-                      {
-                        name: "externalPayload",
-                        type: "tuple[]",
-                        components: [
-                          { name: "deletionCriterion", type: "uint8" },
-                          { name: "blob", type: "bytes" },
-                        ],
-                      },
-                      {
-                        name: "applicationPayload",
-                        type: "tuple[]",
-                        components: [
-                          { name: "deletionCriterion", type: "uint8" },
-                          { name: "blob", type: "bytes" },
-                        ],
-                      },
-                    ],
-                  },
-                  { name: "proof", type: "bytes" },
+                  { name: "nullifier", type: "bytes32" },
+                  { name: "logicRef", type: "bytes32" },
+                  { name: "commitmentTreeRoot", type: "bytes32" },
+                  APP_DATA_COMPONENT,
                 ],
               },
               {
-                name: "complianceVerifierInputs",
+                name: "created",
                 type: "tuple[]",
                 components: [
-                  { name: "proof", type: "bytes" },
-                  {
-                    name: "instance",
-                    type: "tuple",
-                    components: [
-                      {
-                        name: "consumed",
-                        type: "tuple",
-                        components: [
-                          { name: "nullifier", type: "bytes32" },
-                          { name: "logicRef", type: "bytes32" },
-                          { name: "commitmentTreeRoot", type: "bytes32" },
-                        ],
-                      },
-                      {
-                        name: "created",
-                        type: "tuple",
-                        components: [
-                          { name: "commitment", type: "bytes32" },
-                          { name: "logicRef", type: "bytes32" },
-                        ],
-                      },
-                      { name: "unitDeltaX", type: "bytes32" },
-                      { name: "unitDeltaY", type: "bytes32" },
-                    ],
-                  },
+                  { name: "commitment", type: "bytes32" },
+                  { name: "logicRef", type: "bytes32" },
+                  APP_DATA_COMPONENT,
                 ],
               },
+              {
+                name: "delta",
+                type: "tuple",
+                components: [
+                  { name: "x", type: "uint256" },
+                  { name: "y", type: "uint256" },
+                ],
+              },
+              { name: "actionTreeRoot", type: "bytes32" },
             ],
           },
           { name: "deltaProof", type: "bytes" },
@@ -139,6 +106,14 @@ export const EXECUTE_ABI: Abi = [
     outputs: [],
   },
 ];
+
+/**
+ * Function selector for `execute`, derived from EXECUTE_ABI so it can never drift from the shape
+ * the decoder actually feeds to viem.
+ */
+export const EXECUTE_SELECTOR: Hex = toFunctionSelector(
+  EXECUTE_ABI[0] as Parameters<typeof toFunctionSelector>[0]
+);
 
 // Raw decoded types from viem
 interface RawExpirableBlob {
@@ -153,39 +128,24 @@ interface RawAppData {
   applicationPayload: readonly RawExpirableBlob[];
 }
 
-interface RawLogicInput {
-  tag: Hex;
-  verifyingKey: Hex;
-  appData: RawAppData;
-  proof: Hex;
-}
-
-interface RawConsumedRefs {
+interface RawConsumed {
   nullifier: Hex;
   logicRef: Hex;
   commitmentTreeRoot: Hex;
+  appData: RawAppData;
 }
 
-interface RawCreatedRefs {
+interface RawCreated {
   commitment: Hex;
   logicRef: Hex;
-}
-
-interface RawComplianceInstance {
-  consumed: RawConsumedRefs;
-  created: RawCreatedRefs;
-  unitDeltaX: Hex;
-  unitDeltaY: Hex;
-}
-
-interface RawComplianceInput {
-  proof: Hex;
-  instance: RawComplianceInstance;
+  appData: RawAppData;
 }
 
 interface RawAction {
-  logicVerifierInputs: readonly RawLogicInput[];
-  complianceVerifierInputs: readonly RawComplianceInput[];
+  consumed: readonly RawConsumed[];
+  created: readonly RawCreated[];
+  delta: { x: bigint; y: bigint };
+  actionTreeRoot: Hex;
 }
 
 interface RawTransaction {
@@ -230,36 +190,25 @@ function convertAppData(raw: RawAppData): AppData {
 }
 
 /**
- * Convert raw logic verifier input from ABI decoding to typed format
+ * Convert the public data of a raw consumed resource to typed format
  */
-function convertLogicInput(raw: RawLogicInput): LogicVerifierInput {
+function convertConsumed(raw: RawConsumed): Consumed {
   return {
-    tag: raw.tag,
-    verifyingKey: raw.verifyingKey,
+    nullifier: raw.nullifier,
+    logicRef: raw.logicRef,
+    commitmentTreeRoot: raw.commitmentTreeRoot,
     appData: convertAppData(raw.appData),
-    proof: raw.proof,
   };
 }
 
 /**
- * Convert raw compliance verifier input from ABI decoding to typed format
+ * Convert the public data of a raw created resource to typed format
  */
-function convertComplianceInput(raw: RawComplianceInput): ComplianceVerifierInput {
+function convertCreated(raw: RawCreated): Created {
   return {
-    proof: raw.proof,
-    instance: {
-      consumed: {
-        nullifier: raw.instance.consumed.nullifier,
-        logicRef: raw.instance.consumed.logicRef,
-        commitmentTreeRoot: raw.instance.consumed.commitmentTreeRoot,
-      },
-      created: {
-        commitment: raw.instance.created.commitment,
-        logicRef: raw.instance.created.logicRef,
-      },
-      unitDeltaX: raw.instance.unitDeltaX,
-      unitDeltaY: raw.instance.unitDeltaY,
-    },
+    commitment: raw.commitment,
+    logicRef: raw.logicRef,
+    appData: convertAppData(raw.appData),
   };
 }
 
@@ -268,8 +217,10 @@ function convertComplianceInput(raw: RawComplianceInput): ComplianceVerifierInpu
  */
 function convertAction(raw: RawAction): Action {
   return {
-    logicVerifierInputs: raw.logicVerifierInputs.map(convertLogicInput),
-    complianceVerifierInputs: raw.complianceVerifierInputs.map(convertComplianceInput),
+    consumed: raw.consumed.map(convertConsumed),
+    created: raw.created.map(convertCreated),
+    delta: { x: raw.delta.x, y: raw.delta.y },
+    actionTreeRoot: raw.actionTreeRoot,
   };
 }
 

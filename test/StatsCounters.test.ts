@@ -245,8 +245,7 @@ describe("Stats Counters", () => {
       expect(stats.transactions).toBe(0n);
       expect(stats.tags).toBe(0n);
       expect(stats.actions).toBe(0n);
-      expect(stats.complianceUnits).toBe(0n);
-      expect(stats.logicInputs).toBe(0n);
+      expect(stats.resources).toBe(0n);
       expect(stats.distinctLogics).toBe(0n);
     });
   });

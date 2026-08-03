@@ -1,7 +1,10 @@
 /**
  * Logic type definitions following Anoma specification.
  *
- * Logic verifier inputs contain the application data and proofs for resources.
+ * App data travels with each consumed and created resource and carries the payload blobs the
+ * protocol adapter re-emits as payload events.
+ *
+ * From PA-EVM libs/proving/Logic.sol.
  */
 
 export enum DeletionCriterion {
@@ -19,18 +22,4 @@ export interface AppData {
   discoveryPayload: ExpirableBlob[];
   externalPayload: ExpirableBlob[];
   applicationPayload: ExpirableBlob[];
-}
-
-export interface LogicInstance {
-  tag: `0x${string}`;
-  isConsumed: boolean;
-  actionTreeRoot: `0x${string}`;
-  appData: AppData;
-}
-
-export interface LogicVerifierInput {
-  tag: `0x${string}`;
-  verifyingKey: `0x${string}`;
-  appData: AppData;
-  proof: `0x${string}`;
 }

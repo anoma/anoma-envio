@@ -2,9 +2,13 @@
  * Minimal encoder for ProtocolAdapter.execute() calldata, used to build synthetic
  * multi-action transactions in handler tests. Encodes with the same EXECUTE_ABI the
  * decoder consumes, so round-trips are faithful to the on-chain struct layout.
+ *
+ * A round-trip through one ABI cannot catch a self-consistently wrong ABI. That is what
+ * `ActionDecoder.test.ts` pins the derived selector against the contract's own signature for.
  */
 import { encodeFunctionData, type Hex } from "viem";
 import { EXECUTE_ABI } from "../../src/decoders/ActionDecoder.js";
+import { DeletionCriterion } from "../../src/types/index.js";
 
 const ZERO32 = ("0x" + "00".repeat(32)) as Hex;
 
@@ -14,36 +18,59 @@ export function b32(seed: string): Hex {
   return ("0x" + hex.padEnd(64, "0").slice(0, 64)) as Hex;
 }
 
-const emptyAppData = () => ({
-  resourcePayload: [] as unknown[],
-  discoveryPayload: [] as unknown[],
-  externalPayload: [] as unknown[],
-  applicationPayload: [] as unknown[],
-});
+type Blob = { deletionCriterion: number; blob: Hex };
 
-/** One logic verifier input (one resource). */
-export function logicInput(tag: Hex, verifyingKey: Hex) {
-  return { tag, verifyingKey, appData: emptyAppData(), proof: "0x" as Hex };
+export type AppDataInput = {
+  resourcePayload?: Blob[];
+  discoveryPayload?: Blob[];
+  externalPayload?: Blob[];
+  applicationPayload?: Blob[];
+};
+
+/** One payload blob. Defaults to `Immediately`, which the contract never emits an event for. */
+export function blob(
+  data: Hex,
+  deletionCriterion: DeletionCriterion = DeletionCriterion.Immediately
+): Blob {
+  return { deletionCriterion, blob: data };
 }
 
-/** One compliance verifier input (one consumed + one created resource). */
-export function complianceInput(nullifier: Hex, commitment: Hex, logicRef: Hex = ZERO32) {
+function appData(input: AppDataInput = {}) {
   return {
-    proof: "0x" as Hex,
-    instance: {
-      consumed: { nullifier, logicRef, commitmentTreeRoot: ZERO32 },
-      created: { commitment, logicRef },
-      unitDeltaX: ZERO32,
-      unitDeltaY: ZERO32,
-    },
+    resourcePayload: input.resourcePayload ?? [],
+    discoveryPayload: input.discoveryPayload ?? [],
+    externalPayload: input.externalPayload ?? [],
+    applicationPayload: input.applicationPayload ?? [],
   };
 }
 
+/** The public data of one consumed resource. */
+export function consumed(nullifier: Hex, logicRef: Hex = ZERO32, payloads: AppDataInput = {}) {
+  return {
+    nullifier,
+    logicRef,
+    commitmentTreeRoot: ZERO32,
+    appData: appData(payloads),
+  };
+}
+
+/** The public data of one created resource. */
+export function created(commitment: Hex, logicRef: Hex = ZERO32, payloads: AppDataInput = {}) {
+  return { commitment, logicRef, appData: appData(payloads) };
+}
+
 export function action(
-  logicVerifierInputs: ReturnType<typeof logicInput>[],
-  complianceVerifierInputs: ReturnType<typeof complianceInput>[]
+  consumedResources: ReturnType<typeof consumed>[],
+  createdResources: ReturnType<typeof created>[],
+  actionTreeRoot: Hex = ZERO32,
+  delta: { x: bigint; y: bigint } = { x: 0n, y: 0n }
 ) {
-  return { logicVerifierInputs, complianceVerifierInputs };
+  return {
+    consumed: consumedResources,
+    created: createdResources,
+    delta,
+    actionTreeRoot,
+  };
 }
 
 /** Encode a full execute() transaction from a list of actions. */

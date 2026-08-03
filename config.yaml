@@ -4,16 +4,17 @@ contracts:
   - name: ProtocolAdapter
     handler: src/EventHandlers.ts
     events:
-      - event: ActionExecuted(bytes32 actionTreeRoot, uint256 actionTagCount)
+      - event: ActionExecuted(bytes32 actionTreeRoot, bytes32[] nullifiers, bytes32[] consumedLogicRefs, bytes32[] commitments, bytes32[] createdLogicRefs)
       - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: CommitmentTreeRootAdded(bytes32 root)
       - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: KindTableCommitmentUpdated(bytes32 indexed kindTableCommitment)
       - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
       - event: Paused(address account)
       - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
-      - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
+      - event: TransactionExecuted(bytes32 indexed transactionId)
       - event: Unpaused(address account)
 field_selection:
   transaction_fields:
@@ -22,6 +23,8 @@ field_selection:
     - "to"
     - "value"
     - "input"
+# The events above are the pa-evm v2 shapes; the addresses below are still the v1.1.0 deployments,
+# which do not emit them. Repoint each chain (address + start_block) once v2 is deployed.
 # Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
 chains:
   - id: 1 # Mainnet
