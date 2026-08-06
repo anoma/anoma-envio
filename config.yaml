@@ -52,7 +52,7 @@ chains:
     start_block: 29105471
     # Stable is not supported by HyperSync, so index via RPC.
     rpc:
-      url: https://rpc.stable.xyz
+      url: https://stable-mainnet.g.alchemy.com/v2/alch_m9ydUgOvlaR4K0g_U7ON6
     contracts:
       - name: ProtocolAdapter
         address:
