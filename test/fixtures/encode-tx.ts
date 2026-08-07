@@ -63,12 +63,12 @@ export function action(
   consumedResources: ReturnType<typeof consumed>[],
   createdResources: ReturnType<typeof created>[],
   actionTreeRoot: Hex = ZERO32,
-  delta: { x: bigint; y: bigint } = { x: 0n, y: 0n }
+  unitDelta: { x: bigint; y: bigint } = { x: 0n, y: 0n }
 ) {
   return {
     consumed: consumedResources,
     created: createdResources,
-    delta,
+    unitDelta,
     actionTreeRoot,
   };
 }

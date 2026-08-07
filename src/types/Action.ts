@@ -5,19 +5,19 @@
  * corresponds to one compliance unit constraining the resources it consumes and creates. It is
  * n:m — any number of consumed and created resources — carrying a single action-level delta.
  *
- * From PA-EVM Types.sol:
+ * From PA-EVM interfaces/IProtocolAdapter.sol:
  * struct Action {
  *     Consumed[] consumed;
  *     Created[] created;
- *     Delta.Point delta;
+ *     Delta unitDelta;
  *     bytes32 actionTreeRoot;
  * }
  */
 
 import type { Consumed, Created } from "./Resource";
 
-/** A secp256k1 point (Delta.Point in PA-EVM libs/proving/Delta.sol). */
-export interface DeltaPoint {
+/** A secp256k1 point — the delta value of an action's compliance unit. */
+export interface Delta {
   x: bigint;
   y: bigint;
 }
@@ -25,7 +25,7 @@ export interface DeltaPoint {
 export interface Action {
   consumed: Consumed[];
   created: Created[];
-  delta: DeltaPoint;
+  unitDelta: Delta;
   actionTreeRoot: `0x${string}`;
 }
 

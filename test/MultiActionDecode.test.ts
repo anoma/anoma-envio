@@ -37,7 +37,7 @@ describe("Multi-action decode", () => {
   const ROOT0 = b32("action-root-0");
   const ROOT1 = b32("action-root-1");
 
-  // Both actions have the same tag count (1 consumed + 1 created) but differ in delta and in
+  // Both actions have the same tag count (1 consumed + 1 created) but differ in unit delta and in
   // payload counts, so a mis-mapping between event and calldata is observable.
   const CALLDATA = encodeExecute([
     action(
@@ -109,7 +109,7 @@ describe("Multi-action decode", () => {
     return indexer;
   }
 
-  it("F1: each action carries its OWN decoded delta", async () => {
+  it("F1: each action carries its OWN decoded unit delta", async () => {
     const indexer = await run();
     const actions = await indexer.Action.getAll();
     expect(actions).toHaveLength(2);
@@ -119,12 +119,12 @@ describe("Multi-action decode", () => {
     expect(action0, "action 0").toBeDefined();
     expect(action1, "action 1").toBeDefined();
 
-    expect(action0!.deltaX).toBe("1");
-    expect(action0!.deltaY).toBe("2");
+    expect(action0!.unitDeltaX).toBe("1");
+    expect(action0!.unitDeltaY).toBe("2");
 
     // The bug: action 1 would inherit action 0's decoded data.
-    expect(action1!.deltaX).toBe("3");
-    expect(action1!.deltaY).toBe("4");
+    expect(action1!.unitDeltaX).toBe("3");
+    expect(action1!.unitDeltaY).toBe("4");
   });
 
   it("F1: each action's resources carry their OWN decoded payload counts", async () => {

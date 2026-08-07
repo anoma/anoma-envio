@@ -4,7 +4,7 @@
  * App data travels with each consumed and created resource and carries the payload blobs the
  * protocol adapter re-emits as payload events.
  *
- * From PA-EVM libs/proving/Logic.sol.
+ * From PA-EVM interfaces/IProtocolAdapter.sol.
  */
 
 export enum DeletionCriterion {

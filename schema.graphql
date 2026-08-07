@@ -1,11 +1,11 @@
 # Anoma Protocol Adapter GraphQL Schema
-# Entities follow Anoma specification from pa-evm/contracts/src/Types.sol
+# Entities follow Anoma specification from pa-evm/contracts/src/interfaces/IProtocolAdapter.sol
 
 # ============================================
 # Enums
 # ============================================
 
-# Blob deletion criterion from PA-EVM Logic.DeletionCriterion
+# Blob deletion criterion from PA-EVM DeletionCriterion
 enum DeletionCriterion {
   immediately  # Blob should be deleted after processing (value: 0)
   never        # Blob should be persisted permanently (value: 1)
@@ -76,7 +76,7 @@ type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["cha
 
 # Action - Provides context separation between non-intersecting sets of resources.
 # One action is one compliance unit constraining any number of consumed and created resources.
-# Corresponds to: struct Action { Consumed[] consumed; Created[] created; Delta.Point delta; bytes32 actionTreeRoot; }
+# Corresponds to: struct Action { Consumed[] consumed; Created[] created; Delta unitDelta; bytes32 actionTreeRoot; }
 type Action @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
   index: Int!
@@ -88,9 +88,9 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   chainId: BigInt! @index
   timestamp: BigInt! @index
 
-  # The action's delta value (secp256k1 point), as decimal uint256 strings
-  deltaX: String
-  deltaY: String
+  # The delta value of the action's compliance unit (secp256k1 point), as decimal uint256 strings
+  unitDeltaX: String
+  unitDeltaY: String
 
   # Stable EVM-tx correlation key ({chainId}_{txHash}); lets TransactionExecuted
   # locate this action without cross-event module state.
@@ -102,8 +102,8 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
 }
 
 # Resource - The public data of one resource consumed or created by an action.
-# Corresponds to: struct Consumed { bytes32 nullifier; bytes32 logicRef; bytes32 commitmentTreeRoot; Logic.AppData appData; }
-#            and: struct Created  { bytes32 commitment; bytes32 logicRef; Logic.AppData appData; }
+# Corresponds to: struct Consumed { bytes32 nullifier; bytes32 logicRef; bytes32 commitmentTreeRoot; AppData appData; }
+#            and: struct Created  { bytes32 commitment; bytes32 logicRef; AppData appData; }
 type Resource @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   index: Int! # Position in the action's canonical tag order (consumed first, then created)

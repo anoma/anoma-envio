@@ -5,7 +5,7 @@
  * that the sum of all action deltas is zero; the aggregation proof is the single recursive proof
  * covering every compliance unit and resource logic in the transaction.
  *
- * From PA-EVM Types.sol:
+ * From PA-EVM interfaces/IProtocolAdapter.sol:
  * struct Transaction {
  *     Action[] actions;
  *     bytes deltaProof;

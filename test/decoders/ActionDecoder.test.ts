@@ -108,7 +108,7 @@ describe("ActionDecoder", () => {
       ),
     ]);
 
-    it("should decode an n:m action with its delta and action tree root", () => {
+    it("should decode an n:m action with its unit delta and action tree root", () => {
       const result = decodeExecuteCalldata(calldata);
       expect(result.success).toBe(true);
       if (!result.success) {
@@ -120,7 +120,7 @@ describe("ActionDecoder", () => {
       expect(decoded.consumed).toHaveLength(1);
       expect(decoded.created).toHaveLength(2);
       expect(decoded.actionTreeRoot).toBe(root);
-      expect(decoded.delta).toEqual({ x: 7n, y: 9n });
+      expect(decoded.unitDelta).toEqual({ x: 7n, y: 9n });
     });
 
     it("should carry the logic reference and commitment tree root of a consumed resource", () => {

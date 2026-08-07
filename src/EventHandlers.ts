@@ -474,7 +474,7 @@ indexer.onEvent(
 // ============================================
 // ActionExecuted fires BEFORE TransactionExecuted but AFTER payload events. It is authoritative
 // for which tags the action consumed and created, and for their logic references. Calldata
-// decoding adds what the event cannot carry: the action delta, the commitment tree root each
+// decoding adds what the event cannot carry: the action's unit delta, the commitment tree root each
 // consumed resource was proven against, and the app data payload counts.
 
 indexer.onEvent(
@@ -524,8 +524,8 @@ indexer.onEvent(
       blockNumber: BigInt(event.block.number),
       chainId: BigInt(event.chainId),
       timestamp: BigInt(event.block.timestamp),
-      deltaX: decodedAction ? decodedAction.delta.x.toString() : undefined,
-      deltaY: decodedAction ? decodedAction.delta.y.toString() : undefined,
+      unitDeltaX: decodedAction ? decodedAction.unitDelta.x.toString() : undefined,
+      unitDeltaY: decodedAction ? decodedAction.unitDelta.y.toString() : undefined,
       evmTxId: evmTxId,
       transaction_id: evmTxId,
     };

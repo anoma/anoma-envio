@@ -18,9 +18,11 @@
  * struct Action {
  *     Consumed[] consumed;
  *     Created[] created;
- *     Delta.Point delta;
+ *     Delta unitDelta;
  *     bytes32 actionTreeRoot;
  * }
+ *
+ * All of these are declared in PA-EVM interfaces/IProtocolAdapter.sol.
  */
 
 import { decodeFunctionData, toFunctionSelector, type Hex, type Abi } from "viem";
@@ -34,7 +36,7 @@ import type {
 } from "../types/index.js";
 import { DeletionCriterion } from "../types/index.js";
 
-/** The four payload slots of Logic.AppData, each a list of `(uint8 deletionCriterion, bytes blob)`. */
+/** The four payload slots of AppData, each a list of `(uint8 deletionCriterion, bytes blob)`. */
 const APP_DATA_COMPONENT = {
   name: "appData",
   type: "tuple",
@@ -88,7 +90,7 @@ export const EXECUTE_ABI: Abi = [
                 ],
               },
               {
-                name: "delta",
+                name: "unitDelta",
                 type: "tuple",
                 components: [
                   { name: "x", type: "uint256" },
@@ -144,7 +146,7 @@ interface RawCreated {
 interface RawAction {
   consumed: readonly RawConsumed[];
   created: readonly RawCreated[];
-  delta: { x: bigint; y: bigint };
+  unitDelta: { x: bigint; y: bigint };
   actionTreeRoot: Hex;
 }
 
@@ -219,7 +221,7 @@ function convertAction(raw: RawAction): Action {
   return {
     consumed: raw.consumed.map(convertConsumed),
     created: raw.created.map(convertCreated),
-    delta: { x: raw.delta.x, y: raw.delta.y },
+    unitDelta: { x: raw.unitDelta.x, y: raw.unitDelta.y },
     actionTreeRoot: raw.actionTreeRoot,
   };
 }
