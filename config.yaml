@@ -82,3 +82,11 @@ chains:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+  # The only chain carrying a v2 protocol adapter. Excluded from config.prod.yaml.
+  - id: 84532 # Base Sepolia
+    start_block: 45161853 # The proxy deployment block.
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          # The ERC-1967 proxy, not the implementation: the proxy holds the state and emits the events.
+          - "0xED41cB03feaFB2159182b385873BFa858C577e96"
