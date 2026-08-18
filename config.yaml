@@ -73,3 +73,9 @@ chains:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
+  - id: 8453 # Base
+    start_block: 44102500
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
