@@ -22,31 +22,27 @@ Currently there are the following deployments:
 
   Development deployment for the explorer (explorer.dev.heliax.app)
 
-- **anoma-envio-7**
+- **anoma-envio-dev-v2**
 
-  Poorly chosen name for the development deployment of the V2 indexer.
+  Development deployment of the V2 indexer.
 
-Envio watches this repository for new commits on a specific branch:
+Envio watches this repository and redeploys on new commits to the branch each
+project is pointed at. Regenerate this table with
+`envio-cloud indexer settings get <indexer> anoma`:
 
-- **anoma-envio** @ `main`
+| Indexer                     | Branch                    | Config file        | Autodeploy | Tier        |
+| --------------------------- | ------------------------- | ------------------ | ---------- | ----------- |
+| `anoma-envio`               | `main`                    | `config.prod.yaml` | off        | medium      |
+| `anoma-envio-dev`           | `next`                    | `config.yaml`      | **on**     | small       |
+| `anoma-envio-explorer-prod` | `main`                    | `config.yaml`      | off        | development |
+| `anoma-envio-explorer-dev`  | `next`                    | `config.yaml`      | off        | development |
+| `anoma-envio-dev-v2`        | `heueristik/pa-v2-events` | `config.yaml`      | **on**     | development |
 
-  autodeploy: off
-
-- **anoma-envio-dev** @ `next`
-
-  autodeploy: on
-
-- **anoma-envio-explorer-prod** @ `main`
-
-  autodeploy: off
-
-- **anoma-envio-explorer-dev** @ `next`
-
-  autodeploy: off
-
-- **anoma-envio-7** @ `heueristik/pa-v2-events`
-
-  autodeploy: on
+Two things in that table are easy to miss. Production is the only project that
+does not read `config.yaml` — it reads `config.prod.yaml`, so a change to the
+former does not reach production and deleting the latter breaks the next
+production deploy. And `anoma-envio-explorer-prod` is on the `development` tier
+despite the name, which puts it under the free-tier URL churn described below.
 
 ## Making a new deployment
 
@@ -59,9 +55,10 @@ deploy them manually via the [Envio webportal](https://envio.dev/app/anoma).
 Whenever you make a commit on the branch the deployment is monitoring, you will
 see that commit show up in the dashboard. For example, if you look
 [here](https://envio.dev/app/anoma/anoma-envio-dev) you will see that the
-currently deployed commit is `d7aadd9`. Any new commit will be listed under
+currently deployed commit is `1cb322f`. Any new commit will be listed under
 "latest commits". You can click "Deploy" on the right side of this commit to
-deploy it as an indexer.
+deploy it as an indexer. Every commit hash in this file is a snapshot from
+2026-08-19; `envio-cloud indexer get <indexer> anoma` is the live answer.
 
 Keep in mind that you can deploy as many indexers as you want under a single
 project, but you only get 750 hours per month, and a single deployment running
@@ -73,7 +70,13 @@ deployments.***
 
 For a paid indexer the URLs are static. This means you can do an update and the
 URL does not have to change. For a free deployment you have to update the URL
-each time, because it is based on the commit hash of the deployment.
+each time, because it changes per deployment.
+
+Note that the identifier in the URL is _not_ the Git commit hash, even though it
+looks like one. `anoma-envio-dev-v2` is deployed at commit `6d9cc33` and serves
+from `.../3084fc4/v1/graphql`; none of the five deployments has a URL segment
+matching its commit. So you cannot construct the endpoint from a commit — you
+have to ask for it.
 
 There are two paid deployments:
 
@@ -163,9 +166,10 @@ is scriptable.
 ## When all else fails
 
 If the indexer is borking for some unknown reason, you can always delete the
-deployment and redeploy it. If you redeploy the same commit you do not have to
-update the endpoint URLs, since they use the Git commit hash under the hood and
-will not change if you deploy the same commit again.
+deployment and redeploy it. Redeploying the same commit is believed to keep the
+same endpoint URL, but since the URL is not derived from the commit hash (see
+above), confirm with `envio-cloud deployment endpoint` afterwards rather than
+assuming it.
 
 There was an instance where the indexers stopped working due to an upstream RPC
 being naughty. The simple fix is to delete the current deployment, wait until
