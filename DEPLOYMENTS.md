@@ -39,7 +39,7 @@ project is pointed at. Regenerate this table with
 | `anoma-envio-dev-v2`        | `heueristik/pa-v2-events` | `config.yaml`      | **on**     | development |
 
 Two things in that table are easy to miss. Production is the only project that
-does not read `config.yaml` — it reads `config.prod.yaml`, so a change to the
+does not read `config.yaml`; it reads `config.prod.yaml`, so a change to the
 former does not reach production and deleting the latter breaks the next
 production deploy. And `anoma-envio-explorer-prod` is on the `development` tier
 despite the name, which puts it under the free-tier URL churn described below.
@@ -72,11 +72,11 @@ For a paid indexer the URLs are static. This means you can do an update and the
 URL does not have to change. For a free deployment you have to update the URL
 each time, because it changes per deployment.
 
-Note that the identifier in the URL is _not_ the Git commit hash, even though it
+Note that the identifier in the URL is not the Git commit hash, even though it
 looks like one. `anoma-envio-dev-v2` is deployed at commit `6d9cc33` and serves
 from `.../3084fc4/v1/graphql`; none of the five deployments has a URL segment
-matching its commit. So you cannot construct the endpoint from a commit — you
-have to ask for it.
+matching its commit. You cannot construct the endpoint from a commit; you have
+to ask for it.
 
 There are two paid deployments:
 
@@ -117,7 +117,7 @@ envio-cloud login              # first step; browser auth, 30-day session
 envio-cloud config set-org anoma
 ```
 
-Every command below `login` requires auth, so the login is not optional — the
+Every command below `login` requires auth, so the login is not optional, and the
 rest fail without it. Credentials land in `$HOME/.envio-cloud.yaml`, and
 `envio-cloud token` reports whether the current session is still good.
 
@@ -148,7 +148,7 @@ per-command flag, not a global one; the only global flags are `--config`,
 `--org`, `--indexer`, and `-q`.
 
 `envio-cloud deployment delete` and `envio-cloud indexer delete` are both
-irreversible — `indexer delete` takes the whole project, every deployment and
+irreversible. `indexer delete` takes the whole project, every deployment and
 all its data with it.
 
 Two log-fetching details that matter when you are chasing an incident: `--limit`
