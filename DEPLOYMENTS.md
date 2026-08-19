@@ -110,9 +110,13 @@ from the `envio` CLI this repository depends on:
 
 ```bash
 npm install -g envio-cloud     # or run it as: npx envio-cloud <command>
-envio-cloud login              # browser auth, 30-day session
+envio-cloud login              # first step; browser auth, 30-day session
 envio-cloud config set-org anoma
 ```
+
+Every command below `login` requires auth, so the login is not optional — the
+rest fail without it. Credentials land in `$HOME/.envio-cloud.yaml`, and
+`envio-cloud token` reports whether the current session is still good.
 
 For CI, log in with a GitHub token carrying `read:org`, `read:user`, and
 `user:email` instead of the browser flow:
@@ -135,10 +139,20 @@ The manual steps above map to these commands:
 | Clean up an old deployment | `envio-cloud deployment delete INDEXER COMMIT`                     |
 | Check or flip autodeploy   | `envio-cloud indexer settings get INDEXER ORG`                     |
 
-Add `-o json` to anything you want to parse, and `--yes` to skip the
-confirmation prompts in automation. `envio-cloud deployment delete` and
-`envio-cloud indexer delete` are both irreversible — `indexer delete` takes the
-whole project, every deployment and all its data with it.
+Most commands take `-o json` for parsing, and the ones that mutate take `-y` /
+`--yes` to skip the confirmation prompt in automation. Note that `-o` is a
+per-command flag, not a global one; the only global flags are `--config`,
+`--org`, `--indexer`, and `-q`.
+
+`envio-cloud deployment delete` and `envio-cloud indexer delete` are both
+irreversible — `indexer delete` takes the whole project, every deployment and
+all its data with it.
+
+Two log-fetching details that matter when you are chasing an incident: `--limit`
+caps at 100 lines, and the initial fetch only looks back 30 minutes for runtime
+logs (24 hours for `--build`) unless you widen it with `--since 24h`. The
+ceiling is 7 days for runtime and 30 days for build, so anything older than that
+is gone. `--follow` polls every 10 seconds rather than streaming.
 
 Two things this makes easier than the dashboard: the endpoint URL churn on the
 free tier becomes `envio-cloud deployment endpoint ... -o json` in a script
