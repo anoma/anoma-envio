@@ -1,4 +1,4 @@
-# Updating Envio
+# Envio deployments
 
 In Envio there is an organisation, "Anoma", and under Anoma there are multiple
 projects. Each project is an indexer in its own right, configured from this Git
