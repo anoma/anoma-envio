@@ -147,7 +147,7 @@ type LogicInput @index(fields: ["chainId", "timestamp"]) {
 
   # Relationships
   action: Action! @index
-  tag: Tag
+  tag: Tag @index
 }
 
 # Tag - A reference to an Anoma resource identified by its tag hash (nullifier or commitment)
