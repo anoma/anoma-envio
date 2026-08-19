@@ -97,6 +97,55 @@ the front-end. It is not free to call (usage limits), and we cannot secure it
 unless we pay for it. So be careful where you use this URL. ***It should never
 be used in a front-end setting, only in a back-end one.***
 
+Worth re-checking, though: Envio does expose endpoint API keys and IP allowlists
+(`envio-cloud indexer security api-key enable` and `... security add-ip`). Which
+tiers they are available on is not something this file can answer, so treat the
+sentence above as the safe default until someone confirms otherwise.
+
+## Doing all of this from the CLI
+
+Everything above can be driven from the terminal instead of the dashboard, which
+is what you want for scripting, CI, and agents. The tool is a separate package
+from the `envio` CLI this repository depends on:
+
+```bash
+npm install -g envio-cloud     # or run it as: npx envio-cloud <command>
+envio-cloud login              # browser auth, 30-day session
+envio-cloud config set-org anoma
+```
+
+For CI, log in with a GitHub token carrying `read:org`, `read:user`, and
+`user:email` instead of the browser flow:
+
+```bash
+export ENVIO_GITHUB_TOKEN=...
+envio-cloud login
+```
+
+The manual steps above map to these commands:
+
+| Task                       | Command                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| See what is deployed       | `envio-cloud indexer get anoma-envio-dev`                          |
+| List deployable commits    | `envio-cloud indexer commits anoma-envio-dev`                      |
+| Deploy a commit            | `envio-cloud deployment deploy INDEXER COMMIT`                     |
+| Watch a deployment sync    | `envio-cloud deployment status INDEXER COMMIT --watch-till-synced` |
+| Get the GraphQL endpoint   | `envio-cloud deployment endpoint INDEXER COMMIT`                   |
+| Tail logs                  | `envio-cloud deployment logs INDEXER COMMIT --follow`              |
+| Clean up an old deployment | `envio-cloud deployment delete INDEXER COMMIT`                     |
+| Check or flip autodeploy   | `envio-cloud indexer settings get INDEXER ORG`                     |
+
+Add `-o json` to anything you want to parse, and `--yes` to skip the
+confirmation prompts in automation. `envio-cloud deployment delete` and
+`envio-cloud indexer delete` are both irreversible — `indexer delete` takes the
+whole project, every deployment and all its data with it.
+
+Two things this makes easier than the dashboard: the endpoint URL churn on the
+free tier becomes `envio-cloud deployment endpoint ... -o json` in a script
+rather than a manual copy out of the web page, and the hours budget becomes
+something you can actually enforce, since listing and deleting stale deployments
+is scriptable.
+
 ## When all else fails
 
 If the indexer is borking for some unknown reason, you can always delete the
@@ -108,3 +157,12 @@ There was an instance where the indexers stopped working due to an upstream RPC
 being naughty. The simple fix is to delete the current deployment, wait until
 it is removed, and then deploy that same commit again. The instructions for
 deploying are written above.
+
+There is also a first-class restart, which is less work than the delete-and-wait
+dance and keeps the same commit and endpoint:
+
+```bash
+envio-cloud deployment restart INDEXER COMMIT
+```
+
+There is a 10-minute cooldown between restarts, so it is not a retry loop.
