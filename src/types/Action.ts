@@ -19,8 +19,3 @@ export interface Action {
   logicVerifierInputs: LogicVerifierInput[];
   complianceVerifierInputs: ComplianceVerifierInput[];
 }
-
-export interface ActionExecutedEvent {
-  actionTreeRoot: `0x${string}`;
-  actionTagCount: bigint;
-}

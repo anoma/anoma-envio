@@ -190,7 +190,7 @@ src/
 ├── types/                 # TypeScript types mirroring pa-evm Solidity structs
 └── utils/
     ├── BoundedCache.ts    # FIFO cache for decoded calldata (prevents memory growth)
-    └── index.ts           # Utility re-exports
+    └── abi.ts             # ABI definitions for viem decoding
 test/
 ├── graphql.test.ts        # Integration tests against GraphQL endpoint
 ├── decoders/              # Unit tests for calldata and blob decoders

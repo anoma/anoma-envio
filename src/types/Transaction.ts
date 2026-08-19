@@ -20,8 +20,3 @@ export interface Transaction {
   deltaProof: `0x${string}`;
   aggregationProof: `0x${string}`;
 }
-
-export interface TransactionExecutedEvent {
-  tags: `0x${string}`[];
-  logicRefs: `0x${string}`[];
-}
