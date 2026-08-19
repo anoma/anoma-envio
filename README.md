@@ -186,8 +186,7 @@ src/
 ├── EventHandlers.ts       # Core event handlers for all 11 ProtocolAdapter events
 ├── constants.ts           # Selectors, cache sizes, helper functions
 ├── decoders/
-│   ├── ActionDecoder.ts   # Decodes execute() calldata into typed Action structs
-│   └── index.ts           # Decoder re-exports
+│   └── ActionDecoder.ts   # Decodes execute() calldata into typed Action structs
 ├── types/                 # TypeScript types mirroring pa-evm Solidity structs
 └── utils/
     ├── BoundedCache.ts    # FIFO cache for decoded calldata (prevents memory growth)
