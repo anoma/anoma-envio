@@ -112,10 +112,38 @@ the API from memory.
 saying "the resolved indexer config", it prints only the CLI version and storage backend,
 with no chains or contracts, so read `config.yaml` directly instead.
 
-Claude Code users can additionally run `pnpm envio skills update`, which extracts Envio's
-own skill files into `.claude/skills/`. That is a Claude-specific loading mechanism and
-nothing else reads it, so it is a local convenience rather than part of the project. The
-content is the same guidance `tools search-docs` returns.
+Envio's own guidance is checked in under `.claude/skills/`, extracted from the pinned CLI
+by `pnpm envio skills update`. Despite the directory name these are plain Markdown files,
+not a Claude-only format, and they are worth reading from any harness.
+
+Claude Code discovers them automatically. **Every other agent must open them by hand.**
+Before working on handlers, `schema.graphql`, tests, chain config, or a sync-performance
+question, check whether a matching skill exists and read it first. Each file opens with a
+`description` saying exactly when it applies.
+
+```bash
+ls .claude/skills/                          # what is available
+cat .claude/skills/indexer-schema/SKILL.md  # read one
+```
+
+The topics track whatever the pinned CLI ships, so list the directory rather than working
+from a remembered set of names.
+
+They are extracted from a pinned dependency, so they go stale silently the moment `envio`
+moves. CI enforces the refresh rather than trusting anyone to remember: the
+`Skills match the pinned CLI` step in the quality job re-extracts them and fails on any
+difference. Extraction is byte-deterministic for a given version, so a diff there is always
+real drift. When it fires:
+
+```bash
+pnpm install                  # get the new envio first
+pnpm envio skills update
+git add .claude/skills/       # -f if your global gitignore excludes .claude/
+git commit --amend --no-edit  # fold it into the bump, not a follow-up commit
+```
+
+Expect most skills to change across a version jump and expect new ones to appear; that is a
+normal part of the bump, not an unusual failure.
 
 Envio also runs a docs MCP server exposing `docs_search` and `docs_fetch`, which is the
 same corpus the `tools` commands above search. It needs no authentication:
