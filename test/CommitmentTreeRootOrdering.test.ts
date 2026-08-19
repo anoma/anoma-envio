@@ -11,12 +11,17 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
+// Simulated blocks must sit at or above the chain's start_block in config.yaml.
+// Envio filters anything below it before the handler runs, and a simulate item
+// that reaches no handler is an error. Offsets preserve the original ordering.
+const BASE_BLOCK = 425_772_700;
+
 describe("CommitmentTreeRoot Ordering", () => {
   describe("multiple roots in the same block", () => {
     it("should store distinct logIndex values for each root", async () => {
       const indexer = createTestIndexer();
 
-      const BLOCK = 100;
+      const BLOCK = BASE_BLOCK;
       const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
       const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
 
@@ -66,6 +71,7 @@ describe("CommitmentTreeRoot Ordering", () => {
     it("should allow correct ordering via (blockNumber, logIndex)", async () => {
       const indexer = createTestIndexer();
 
+      const BLOCK = BASE_BLOCK;
       const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
       const TX_HASH = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
@@ -79,7 +85,7 @@ describe("CommitmentTreeRoot Ordering", () => {
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "04".repeat(32) },
                 srcAddress: CONTRACT,
-                block: { number: 101, timestamp: 1700000000 },
+                block: { number: BLOCK + 1, timestamp: 1700000000 },
                 transaction: { hash: TX_HASH },
                 logIndex: 1,
               },
@@ -88,7 +94,7 @@ describe("CommitmentTreeRoot Ordering", () => {
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "02".repeat(32) },
                 srcAddress: CONTRACT,
-                block: { number: 100, timestamp: 1700000000 },
+                block: { number: BLOCK, timestamp: 1700000000 },
                 transaction: { hash: TX_HASH },
                 logIndex: 7,
               },
@@ -97,7 +103,7 @@ describe("CommitmentTreeRoot Ordering", () => {
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "05".repeat(32) },
                 srcAddress: CONTRACT,
-                block: { number: 101, timestamp: 1700000000 },
+                block: { number: BLOCK + 1, timestamp: 1700000000 },
                 transaction: { hash: TX_HASH },
                 logIndex: 4,
               },
@@ -106,7 +112,7 @@ describe("CommitmentTreeRoot Ordering", () => {
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "01".repeat(32) },
                 srcAddress: CONTRACT,
-                block: { number: 100, timestamp: 1700000000 },
+                block: { number: BLOCK, timestamp: 1700000000 },
                 transaction: { hash: TX_HASH },
                 logIndex: 3,
               },
@@ -115,7 +121,7 @@ describe("CommitmentTreeRoot Ordering", () => {
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "03".repeat(32) },
                 srcAddress: CONTRACT,
-                block: { number: 100, timestamp: 1700000000 },
+                block: { number: BLOCK, timestamp: 1700000000 },
                 transaction: { hash: TX_HASH },
                 logIndex: 12,
               },
@@ -148,7 +154,7 @@ describe("CommitmentTreeRoot Ordering", () => {
     it("should be orderable by logIndex even across txs", async () => {
       const indexer = createTestIndexer();
 
-      const BLOCK = 300;
+      const BLOCK = BASE_BLOCK + 200;
       const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
 
       // Two separate EVM transactions in the same block
