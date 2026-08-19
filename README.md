@@ -187,11 +187,11 @@ src/
 ├── constants.ts           # Selectors, cache sizes, helper functions
 ├── decoders/
 │   ├── ActionDecoder.ts   # Decodes execute() calldata into typed Action structs
-│   └── ResourceDecoder.ts # Decodes resource payload blobs
+│   └── index.ts           # Decoder re-exports
 ├── types/                 # TypeScript types mirroring pa-evm Solidity structs
 └── utils/
     ├── BoundedCache.ts    # FIFO cache for decoded calldata (prevents memory growth)
-    └── abi.ts             # ABI definitions for viem decoding
+    └── index.ts           # Utility re-exports
 test/
 ├── graphql.test.ts        # Integration tests against GraphQL endpoint
 ├── decoders/              # Unit tests for calldata and blob decoders
