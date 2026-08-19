@@ -518,6 +518,7 @@ indexer.onEvent(
     const actionEntity: Action = {
       id: actionId,
       index: actionIndex,
+      logIndex: event.logIndex,
       actionTreeRoot: event.params.actionTreeRoot,
       actionTagCount: nullifiers.length + commitments.length,
       consumedCount: nullifiers.length,
@@ -580,6 +581,7 @@ indexer.onEvent(
           transaction_id: evmTxId,
         }),
         index: index,
+        actionLogIndex: event.logIndex,
         isConsumed: isConsumed,
         logicRef: logicRef,
         resource_id: resourceId,
@@ -709,6 +711,7 @@ indexer.onEvent(
         id: tagId,
         tagHash: event.params.tag,
         index: 0, // Placeholder — ActionExecuted sets the canonical position
+        actionLogIndex: undefined, // Set by ActionExecuted, which knows the action
         isConsumed: false, // Placeholder — ActionExecuted sets the side
         blockNumber: BigInt(event.block.number),
         timestamp: BigInt(event.block.timestamp),

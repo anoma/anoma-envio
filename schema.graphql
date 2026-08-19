@@ -79,7 +79,8 @@ type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["cha
 # Corresponds to: struct Action { Consumed[] consumed; Created[] created; Delta unitDelta; bytes32 actionTreeRoot; }
 type Action @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
-  index: Int!
+  index: Int! # Position among the transaction's actions, in ActionExecuted arrival order
+  logIndex: Int! @index # EVM log index of the ActionExecuted event
   actionTreeRoot: String! @index
   actionTagCount: Int! # consumedCount + createdCount
   consumedCount: Int!
@@ -134,7 +135,9 @@ type Resource @index(fields: ["chainId", "timestamp"]) {
 type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
-  index: Int! # Position in the action's canonical tag order (consumed nullifiers, then created commitments)
+  index: Int! # Position within one action (consumed nullifiers, then created commitments)
+  # (actionLogIndex, index) orders a transaction's tags; index alone repeats across actions.
+  actionLogIndex: Int @index
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: BigInt! @index
   timestamp: BigInt! @index
