@@ -23,11 +23,19 @@ fi
 declare -A ALCHEMY_SLUGS=(
   [11155111]="eth-sepolia"
   [84532]="base-sepolia"
+  # [1]="eth-mainnet"
+  # [42161]="arb-mainnet"
+  # [8453]="base-mainnet"
+  # [10]="opt-mainnet"
+  # [56]="bnb-mainnet"
+  # [143]="monad-mainnet"
 )
 
-# Public archive RPCs for HyperSync chains that Alchemy does not cover. Empty while every
-# indexed chain is Alchemy-backed; add entries here if a chain without Alchemy support is added.
-declare -A PUBLIC_RPCS=()
+# Public archive RPCs for HyperSync chains that Alchemy does not cover.
+declare -A PUBLIC_RPCS=(
+  # [4326]="https://mainnet.megaeth.com/rpc"
+  # [1313161554]="https://mainnet.aurora.dev"
+)
 
 # Extract rpc_config URLs from config.yaml using yq (if available)
 declare -A CONFIG_RPCS
@@ -54,9 +62,8 @@ while IFS= read -r line; do
     RPC_URL="${CONFIG_RPCS[$CHAIN_ID]:-${PUBLIC_RPCS[$CHAIN_ID]:-}}"
     ALCHEMY_SLUG="${ALCHEMY_SLUGS[$CHAIN_ID]:-}"
 
-    # Fail here rather than let CI go green on nothing. A chain with no reachable archive
-    # RPC makes config-validation.test.ts skip every one of its checks, which reports as a
-    # passing job. Adding a chain to config.yaml therefore has to name its RPC too.
+    # Without an archive RPC, config-validation.test.ts skips every check and the job
+    # still reports green.
     if [ -z "$RPC_URL" ] && [ -z "$ALCHEMY_SLUG" ]; then
       echo "Error: chain $CHAIN_ID ($RAW_NAME) has no archive RPC, so CI could not validate it." >&2
       echo "  Fix one of the following:" >&2
