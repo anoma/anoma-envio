@@ -147,9 +147,14 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Skipped for Dependabot, which gets no repository secrets, so this job would
+  # fail on an empty ALCHEMY_API_KEY before running anything. github.actor is
+  # whoever triggered the run, so pushing a commit to a Dependabot branch by hand
+  # brings the full matrix back.
   validation:
     name: Validate (${{ matrix.name }})
     needs: [setup]
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
@@ -191,9 +196,13 @@ jobs:
           fi
           pnpm exec vitest run test/ci/config-validation.test.ts --testNamePattern '\(chain ${{ matrix.chain_id }}\)'
 
+  # Skipped for Dependabot for the same reason as validation above. A bot bump of
+  # viem or envio does want this, so finish those by hand: one human commit on the
+  # branch flips github.actor and the matrix runs.
   integration:
     name: Integration (${{ matrix.name }})
     needs: [setup]
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
