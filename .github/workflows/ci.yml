@@ -62,6 +62,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # .claude/skills/ is extracted from the pinned envio CLI, so bumping envio
+      # without re-running this leaves the skills describing the old API.
+      # Extraction is byte-deterministic, so any diff here is real drift.
+      - name: Skills match the pinned CLI
+        run: |
+          pnpm envio skills update
+          git add -fAN .claude/skills/
+          git diff --exit-code .claude/skills/
+
       - name: Resolve config env vars and run Envio codegen
         run: |
           perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
