@@ -24,9 +24,12 @@ field_selection:
     - "to"
     - "value"
     - "input"
-# The events above are the pa-evm v2 shapes; the addresses below are still the v1.1.0 deployments,
-# which do not emit them. Repoint each chain (address + start_block) once v2 is deployed.
-# Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
+# The events above are the pa-evm v2 shapes, taken from contracts/v2.0.0-alpha.5. The mainnet
+# chains below are still the v1.1.0 deployments: their ActionExecuted and TransactionExecuted have
+# different topic0 hashes, so nothing on them is indexed until each is repointed (address +
+# start_block) at a v2 deployment. Only the two testnets at the end carry a v2 adapter today.
+# v1 addresses:  https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
+# v2 addresses:  https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json
 chains:
   - id: 1 # Mainnet
     start_block: 24326330
@@ -83,11 +86,22 @@ chains:
       - name: ProtocolAdapter
         address:
           - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  # The only chain carrying a v2 protocol adapter. Excluded from config.prod.yaml.
+  # The only chains carrying a v2 protocol adapter. Excluded from config.prod.yaml.
+  # Addresses are the ERC-1967 proxies, not the implementations: the proxy holds the state and
+  # emits the events. start_block is the proxy deployment block.
   - id: 84532 # Base Sepolia
-    start_block: 45161853 # The proxy deployment block.
+    start_block: 45161853
     contracts:
       - name: ProtocolAdapter
         address:
-          # The ERC-1967 proxy, not the implementation: the proxy holds the state and emits the events.
+          # The deployment that has actually executed transactions to date.
           - "0xED41cB03feaFB2159182b385873BFa858C577e96"
+          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
+          - "0x6BbDF59F869957dDC96e8a4d79077613727e6537"
+  - id: 11155111 # Sepolia
+    start_block: 11480805
+    contracts:
+      - name: ProtocolAdapter
+        address:
+          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
+          - "0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE"
