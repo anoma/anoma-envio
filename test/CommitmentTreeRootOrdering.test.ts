@@ -27,7 +27,7 @@ describe("CommitmentTreeRoot Ordering", () => {
 
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -78,7 +78,7 @@ describe("CommitmentTreeRoot Ordering", () => {
       // 5 roots across 2 blocks, inserted out of order
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -160,7 +160,7 @@ describe("CommitmentTreeRoot Ordering", () => {
       // Two separate EVM transactions in the same block
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",

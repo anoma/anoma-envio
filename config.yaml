@@ -24,71 +24,11 @@ field_selection:
     - "to"
     - "value"
     - "input"
-# The events above are the pa-evm v2 shapes, taken from contracts/v2.0.0-alpha.5. The mainnet
-# chains below are still the v1.1.0 deployments: their ActionExecuted and TransactionExecuted have
-# different topic0 hashes, so nothing on them is indexed until each is repointed (address +
-# start_block) at a v2 deployment. Only the two testnets at the end carry a v2 adapter today.
-# v1 addresses:  https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
-# v2 addresses:  https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json
+# The events above are the pa-evm v2 shapes, taken from contracts/v2.0.0-alpha.5.
+# Addresses are the ERC-1967 proxies, not the implementations: the proxy holds the state and
+# emits the events. start_block is the proxy deployment block.
+# v2 addresses: https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json
 chains:
-  - id: 1 # Mainnet
-    start_block: 24326330
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
-  - id: 42161 # Arbitrum
-    start_block: 425772682
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  - id: 56 # BSC
-    start_block: 84845926
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
-  - id: 143 # Monad
-    start_block: 77753171
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 988 # Stable
-    start_block: 29105471
-    # Stable is not supported by HyperSync, so index via RPC.
-    rpc:
-      url: https://stable-mainnet.g.alchemy.com/v2/alch_m9ydUgOvlaR4K0g_U7ON6
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 4326 # MegaETH
-    start_block: 19402510
-    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
-    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://4326.hypersync.xyz" }
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 1313161554 # Aurora
-    start_block: 203917905
-    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
-    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://1313161554.hypersync.xyz" }
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 8453 # Base
-    start_block: 41364872
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  # The only chains carrying a v2 protocol adapter. Excluded from config.prod.yaml.
-  # Addresses are the ERC-1967 proxies, not the implementations: the proxy holds the state and
-  # emits the events. start_block is the proxy deployment block.
   - id: 84532 # Base Sepolia
     start_block: 45161853
     contracts:

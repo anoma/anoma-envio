@@ -21,23 +21,13 @@ fi
 # Well-known Alchemy network slugs for archive RPC access.
 # Used in CI validation for chains that need archive queries (eth_getCode at historical blocks).
 declare -A ALCHEMY_SLUGS=(
-  [1]="eth-mainnet"
-  [42161]="arb-mainnet"
-  [8453]="base-mainnet"
-  [10]="opt-mainnet"
-  [56]="bnb-mainnet"
-  [143]="monad-mainnet"
   [11155111]="eth-sepolia"
   [84532]="base-sepolia"
 )
 
-# Public archive RPCs for HyperSync chains that Alchemy does not cover.
-# These chains index via HyperSync (no rpc_config in config.yaml), but CI still
-# needs an archive RPC for start_block validation and integration tip detection.
-declare -A PUBLIC_RPCS=(
-  [4326]="https://mainnet.megaeth.com/rpc"
-  [1313161554]="https://mainnet.aurora.dev"
-)
+# Public archive RPCs for HyperSync chains that Alchemy does not cover. Empty while every
+# indexed chain is Alchemy-backed; add entries here if a chain without Alchemy support is added.
+declare -A PUBLIC_RPCS=()
 
 # Extract rpc_config URLs from config.yaml using yq (if available)
 declare -A CONFIG_RPCS

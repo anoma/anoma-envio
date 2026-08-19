@@ -19,8 +19,8 @@ import { b32, blob, consumed, created, action, encodeExecute } from "../fixtures
  */
 const PA_V2_EXECUTE_SELECTOR = "0x73ab9916";
 
-/** The v1.1.0 selector, kept so a regression to the old struct shape is caught explicitly. */
-const PA_V1_EXECUTE_SELECTOR = "0xed3cf91f";
+/** A superseded execute() struct shape, kept so a regression away from the v2 ABI is caught. */
+const SUPERSEDED_EXECUTE_SELECTOR = "0xed3cf91f";
 
 describe("ActionDecoder", () => {
   describe("EXECUTE_SELECTOR", () => {
@@ -40,8 +40,8 @@ describe("ActionDecoder", () => {
       expect(isExecuteCalldata("0xdeadbeef")).toBe(false);
     });
 
-    it("should return false for the v1 execute selector", () => {
-      expect(isExecuteCalldata(PA_V1_EXECUTE_SELECTOR)).toBe(false);
+    it("should return false for a superseded execute selector", () => {
+      expect(isExecuteCalldata(SUPERSEDED_EXECUTE_SELECTOR)).toBe(false);
     });
 
     it("should return true for execute function selector", () => {

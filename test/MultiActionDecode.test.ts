@@ -5,16 +5,16 @@
  *     map to ITS OWN decoded action (by arrival order), not to the first tag-count match. The old
  *     code assigned both actions' decoded data from decoded.actions[0].
  *
- * The v1 companion check — that a resource's consumed/created side follows tag identity rather
- * than array position — has no v2 counterpart to get wrong: ActionExecuted carries the nullifiers
- * and the commitments as separate arrays. The last case below pins that they are read as such.
+ * Whether a resource's consumed/created side follows tag identity rather than array position is
+ * not something this schema can get wrong: ActionExecuted carries the nullifiers and the
+ * commitments as separate arrays. The last case below pins that they are read as such.
  */
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 import { b32, blob, consumed, created, action, encodeExecute } from "./fixtures/encode-tx.js";
 
 describe("Multi-action decode", () => {
-  const CHAIN = 1;
+  const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   // Must be an address indexed for this chain in config.yaml. Envio filters events
   // from any other address before the handler runs.

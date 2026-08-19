@@ -12,6 +12,7 @@ import { createTestIndexer } from "envio";
 
 describe("ProtocolAdapterUpgraded", () => {
   const CHAIN = 84532;
+  const OTHER_CHAIN = 11155111;
   const CONTRACT: `0x${string}` = "0xED41cB03feaFB2159182b385873BFa858C577e96";
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   const IMPL_1: `0x${string}` = "0x1111111111111111111111111111111111111111";
@@ -74,12 +75,14 @@ describe("ProtocolAdapterUpgraded", () => {
     await indexer.process({
       chains: {
         [CHAIN]: { simulate: [upgraded] },
-        1: { simulate: [upgraded] },
+        [OTHER_CHAIN]: { simulate: [upgraded] },
       },
     });
 
     const all = await indexer.ProtocolAdapterUpgraded.getAll();
     expect(all).toHaveLength(2);
-    expect([...all].map((u) => u.chainId).sort()).toEqual([BigInt(CHAIN), 1n].sort());
+    expect([...all].map((u) => u.chainId).sort()).toEqual(
+      [BigInt(CHAIN), BigInt(OTHER_CHAIN)].sort()
+    );
   });
 });

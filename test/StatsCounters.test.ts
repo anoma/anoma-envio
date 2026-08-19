@@ -29,7 +29,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -52,7 +52,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -85,7 +85,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -109,7 +109,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -133,7 +133,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -157,7 +157,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -186,7 +186,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -255,7 +255,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",

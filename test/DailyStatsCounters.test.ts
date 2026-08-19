@@ -27,7 +27,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -52,7 +52,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -86,7 +86,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -111,7 +111,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -136,7 +136,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -161,7 +161,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -191,7 +191,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -217,7 +217,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -286,7 +286,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -318,7 +318,7 @@ describe("DailyStats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",

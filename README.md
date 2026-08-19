@@ -86,34 +86,20 @@ Defines which contracts, events, and networks the indexer tracks. This is the so
 | `field_selection`                | Additional EVM transaction fields to capture (hash, from, to, etc) |
 | `unordered_multichain_mode`      | Allows parallel block processing across chains                     |
 
-Currently tracked chains and addresses (from [pa-evm](https://github.com/anoma/pa-evm)). The
-handlers decode the v2 event shapes, so only the v2 rows actually produce data; the v1.1.0 rows are
-kept so each chain can be repointed at its v2 deployment with a one-line address change.
+Currently tracked chains and addresses (from [pa-evm](https://github.com/anoma/pa-evm)). This
+indexer targets the pa-evm v2 protocol adapter only, which so far is deployed on two testnets.
 
-| Chain        | Chain ID   | Contract Address                             | Version     |
-| ------------ | ---------- | -------------------------------------------- | ----------- |
-| Ethereum     | 1          | `0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF` | v1.1.0      |
-| Arbitrum     | 42161      | `0x094FCC095323080e71a037b2B1e3519c07dd84F8` | v1.1.0      |
-| Base         | 8453       | `0x094FCC095323080e71a037b2B1e3519c07dd84F8` | v1.1.0      |
-| BSC          | 56         | `0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68` | v1.1.0      |
-| Monad        | 143        | `0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2` | v1.1.0      |
-| Stable       | 988        | `0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2` | v1.1.0      |
-| MegaETH      | 4326       | `0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2` | v1.1.0      |
-| Aurora       | 1313161554 | `0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2` | v1.1.0      |
-| Base Sepolia | 84532      | `0xED41cB03feaFB2159182b385873BFa858C577e96` | v2 (in use) |
-| Base Sepolia | 84532      | `0x6BbDF59F869957dDC96e8a4d79077613727e6537` | v2 alpha.5  |
-| Sepolia      | 11155111   | `0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE` | v2 alpha.5  |
+| Chain        | Chain ID | Contract Address                             | Version     |
+| ------------ | -------- | -------------------------------------------- | ----------- |
+| Base Sepolia | 84532    | `0xED41cB03feaFB2159182b385873BFa858C577e96` | v2 (in use) |
+| Base Sepolia | 84532    | `0x6BbDF59F869957dDC96e8a4d79077613727e6537` | v2 alpha.5  |
+| Sepolia      | 11155111 | `0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE` | v2 alpha.5  |
 
 The two alpha.5 rows are the canonical deployments recorded in
 [`deployments.json`](https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json);
 neither has executed a transaction yet, so `0xED41cB03…` is the only address currently producing
-`TransactionExecuted` and `ActionExecuted` data.
-
-### `config.prod.yaml`
-
-A narrower production indexing scope: Mainnet + BSC only. Used to keep request volume within Envio's Free tier (500 rpm), which the full dev chain set exceeds. Same contracts, events, and handlers as `config.yaml` — only the `networks` list differs.
-
-Select it at runtime via `CONFIG_FILE=config.prod.yaml`. Both files are templated and shipped in the Docker image; argocd overlays choose which one Envio loads.
+`TransactionExecuted` and `ActionExecuted` data. Addresses are the ERC-1967 proxies, not the
+implementations: the proxy holds the state and emits the events.
 
 ### `schema.graphql`
 

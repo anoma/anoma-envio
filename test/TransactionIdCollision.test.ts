@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
 describe("Transaction ID Collision", () => {
-  const CHAIN = 1;
+  const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   const CONTRACT: `0x${string}` = "0xcccccccccccccccccccccccccccccccccccccccc";
   const BLOCK = 100;
