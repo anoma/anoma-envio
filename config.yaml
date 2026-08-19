@@ -16,6 +16,7 @@ contracts:
       - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: TransactionExecuted(bytes32 indexed transactionId)
       - event: Unpaused(address account)
+      - event: Upgraded(address indexed implementation)
 field_selection:
   transaction_fields:
     - "hash"

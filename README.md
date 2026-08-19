@@ -103,7 +103,7 @@ Select it at runtime via `CONFIG_FILE=config.prod.yaml`. Both files are template
 
 ### `schema.graphql`
 
-Defines the GraphQL entities that get stored and queried. Core entities: `EVMTransaction`, `Transaction`, `Action`, `Tag`, `Resource`, `Payload`, `CommitmentTreeRoot`, `KindTableCommitment`, `ForwarderCall`, and `Stats`.
+Defines the GraphQL entities that get stored and queried. Core entities: `EVMTransaction`, `Transaction`, `Action`, `Tag`, `Resource`, `Payload`, `CommitmentTreeRoot`, `KindTableCommitment`, `ForwarderCall`, `ProtocolAdapterUpgraded`, and `Stats`.
 
 ### Environment Variables
 
@@ -185,7 +185,7 @@ Docker images are tagged by branch (`envio-branch-main`), by PR (`envio-pr-<numb
 
 ```
 src/
-├── EventHandlers.ts       # Core event handlers for all 11 ProtocolAdapter events
+├── EventHandlers.ts       # Core event handlers for all 12 ProtocolAdapter events
 ├── constants.ts           # Selectors, cache sizes, helper functions
 ├── decoders/
 │   ├── ActionDecoder.ts   # Decodes execute() calldata into typed Action structs
@@ -210,4 +210,4 @@ Event processing order within an EVM transaction:
 4. `ActionExecuted` is authoritative for the action's tags and their logic references, and creates the `Resource` entities; calldata decoding adds the action delta, each consumed resource's commitment tree root, and the app data payload counts
 5. `TransactionExecuted` creates the `Transaction` and relinks the actions and tags emitted before it
 
-`KindTableCommitmentUpdated` is recorded independently of that order; the latest row per chain is the kind table transactions must currently prove against.
+`KindTableCommitmentUpdated` is recorded independently of that order; the latest row per chain is the kind table transactions must currently prove against. `Upgraded` is likewise independent: the v2 adapters are ERC-1967 proxies, so it records which implementation was in force at a given block.

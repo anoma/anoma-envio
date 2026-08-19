@@ -28,6 +28,7 @@ import type {
   ForwarderCall,
   OwnershipTransferred,
   ProtocolAdapterPaused,
+  ProtocolAdapterUpgraded,
   Stats,
   ChainStats,
 } from "envio";
@@ -934,4 +935,24 @@ indexer.onEvent({ contract: "ProtocolAdapter", event: "Unpaused" }, async ({ eve
   };
 
   context.ProtocolAdapterPaused.set(entity);
+});
+
+// ============================================
+// Upgraded Handler
+// ============================================
+
+// The v2 adapters sit behind ERC-1967 proxies, so the implementation can change under a fixed
+// address. Recorded on its own, independent of the pause state and of transaction processing.
+// eslint-disable-next-line @typescript-eslint/require-await -- onEvent handlers are typed => Promise<void>; this one does only sync entity writes
+indexer.onEvent({ contract: "ProtocolAdapter", event: "Upgraded" }, async ({ event, context }) => {
+  const entity: ProtocolAdapterUpgraded = {
+    id: createEventId(event),
+    implementation: event.params.implementation,
+    blockNumber: BigInt(event.block.number),
+    txHash: event.transaction.hash,
+    timestamp: BigInt(event.block.timestamp),
+    chainId: BigInt(event.chainId),
+  };
+
+  context.ProtocolAdapterUpgraded.set(entity);
 });
