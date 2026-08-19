@@ -22,7 +22,7 @@ pnpm codegen             # generate types from config.yaml + schema.graphql
 pnpm build               # compile TypeScript
 ```
 
-`pnpm codegen` must run before anything else — it reads `config.yaml` and `schema.graphql` to produce typed handler contexts and entity definitions in the `generated/` directory.
+`pnpm codegen` must run before anything else — it reads `config.yaml` and `schema.graphql` to produce typed handler contexts and entity definitions in the `.envio/` directory.
 
 A successful build compiles with no errors and produces output in `build/`.
 
@@ -80,11 +80,11 @@ Defines which contracts, events, and networks the indexer tracks. This is the so
 | `contracts[].name`               | Contract name (must match ABI)                                     |
 | `contracts[].handler`            | Path to the TypeScript event handler                               |
 | `contracts[].events`             | List of Solidity event signatures to index                         |
-| `networks[].id`                  | EVM chain ID                                                       |
-| `networks[].start_block`         | Block to start indexing from                                       |
-| `networks[].contracts[].address` | Contract address on that chain                                     |
+| `chains[].id`                    | EVM chain ID                                                       |
+| `chains[].start_block`           | Block to start indexing from                                       |
+| `chains[].contracts[].address`   | Contract address on that chain                                     |
 | `field_selection`                | Additional EVM transaction fields to capture (hash, from, to, etc) |
-| `unordered_multichain_mode`      | Allows parallel block processing across chains                     |
+| `save_full_history`              | Whether to retain the full history of entity changes               |
 
 Currently tracked chains and addresses (from [pa-evm](https://github.com/anoma/pa-evm)). This
 indexer targets the pa-evm v2 protocol adapter only, which so far is deployed on two testnets.
@@ -107,27 +107,23 @@ Defines the GraphQL entities that get stored and queried. Core entities: `EVMTra
 
 ### Environment Variables
 
-These are configured in `docker-compose.yml` for containerized deployments. When running locally with `pnpm dev`, Envio manages these automatically.
+Production runs on Envio's hosted service, which manages its own database, Hasura, and
+process configuration — none of the variables below apply there. They exist for the local
+`docker compose` stack (also used by the CI integration job); `pnpm dev` sets its own.
 
-| Variable                      | Required?  | Default                          | Description                                               |
-| ----------------------------- | ---------- | -------------------------------- | --------------------------------------------------------- |
-| `ENVIO_API_TOKEN`             | No         | —                                | HyperSync API token                                       |
-| `ENVIO_HASURA`                | Yes        | `true`                           | Enable Hasura GraphQL integration                         |
-| `LOG_LEVEL`                   | No         | `warn`                           | Log verbosity (`trace`, `debug`, `info`, `warn`, `error`) |
-| `LOG_STRATEGY`                | No         | `console-pretty`                 | Logging output format                                     |
-| `TUI_OFF`                     | No         | `true`                           | Disable the terminal UI (required in Docker)              |
-| `CONFIG_FILE`                 | No         | `config.yaml`                    | Path to the indexer configuration file                    |
-| `ENVIO_PG_HOST`               | Yes        | `postgres`                       | Postgres hostname                                         |
-| `ENVIO_PG_PORT`               | Yes        | `5432`                           | Postgres port                                             |
-| `ENVIO_PG_USER`               | Yes        | `postgres`                       | Postgres user                                             |
-| `ENVIO_PG_PASSWORD`           | Yes        | `postgres`                       | Postgres password                                         |
-| `ENVIO_PG_DATABASE`           | Yes        | `envio`                          | Postgres database name                                    |
-| `ENVIO_PG_PUBLIC_SCHEMA`      | Yes        | `envio`                          | Postgres schema for indexed data                          |
-| `HASURA_GRAPHQL_ENDPOINT`     | Yes        | `http://hasura:8080/v1/metadata` | Hasura metadata API endpoint                              |
-| `HASURA_GRAPHQL_ADMIN_SECRET` | Yes        | `testing`                        | Hasura admin secret                                       |
-| `HASURA_SERVICE_HOST`         | Yes        | `hasura`                         | Hasura hostname                                           |
-| `HASURA_SERVICE_PORT`         | Yes        | `8080`                           | Hasura port                                               |
-| `ENVIO_GRAPHQL_URL`           | Tests only | —                                | GraphQL endpoint URL used by the integration tests        |
+Everything Postgres- and Hasura-related is defined in `docker-compose.yml` and only needs
+touching if you change that stack. The ones worth knowing:
+
+| Variable            | Default          | Description                                                              |
+| ------------------- | ---------------- | ------------------------------------------------------------------------ |
+| `ENVIO_API_TOKEN`   | —                | HyperSync API token. Required to sync; get one at envio.dev/app/api-tokens |
+| `ENVIO_TUI`         | `false`          | Terminal UI. Must stay `false` in Docker (v3 name; was `TUI_OFF` in v2)  |
+| `LOG_LEVEL`         | `warn`           | Log verbosity (`trace`, `debug`, `info`, `warn`, `error`)                |
+| `LOG_STRATEGY`      | `console-pretty` | Logging output format                                                    |
+| `ENVIO_GRAPHQL_URL` | —                | Tests only: GraphQL endpoint the integration tests query                 |
+
+Envio reads `config.yaml` from the working directory by default, so no variable selects the
+config file.
 
 ## External Dependencies
 
@@ -144,7 +140,7 @@ These are configured in `docker-compose.yml` for containerized deployments. When
 - **Indexer not picking up events** — Verify the contract addresses and chain IDs in `config.yaml` match the deployed pa-evm contracts. Cross-check with [pa-evm](https://github.com/anoma/pa-evm).
 - **GraphQL returns empty data** — The indexer may still be syncing. Check the logs from `pnpm dev` for block progress. Also confirm `start_block` in `config.yaml` is correct for the target chain.
 - **Tests fail with connection error** — Set `ENVIO_GRAPHQL_URL` to a running Envio GraphQL endpoint before running `pnpm test`.
-- **`generated/` directory missing or stale** — Run `pnpm codegen`. This directory is gitignored and must be regenerated locally.
+- **`.envio/` types missing or stale** — Run `pnpm codegen`. This directory is gitignored and must be regenerated locally.
 
 ## Testing
 
