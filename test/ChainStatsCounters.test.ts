@@ -10,6 +10,11 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
+// Simulated blocks must sit at or above the chain's start_block in config.yaml.
+// Envio filters anything below it before the handler runs, and a simulate item
+// that reaches no handler is an error. Offsets preserve the original ordering.
+const BLOCK = 425_772_700;
+
 const STATS_ID = "global";
 const CHAIN_A = 1;
 const CHAIN_B = 42161;
@@ -33,7 +38,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -59,7 +64,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -87,7 +92,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -99,7 +104,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "bb".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 200, timestamp: TIMESTAMP },
+                block: { number: BLOCK + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 0,
               },
@@ -107,7 +112,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "cc".repeat(32), index: 1n, blob: "0x00" },
-                block: { number: 201, timestamp: TIMESTAMP },
+                block: { number: BLOCK + 101, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 1,
               },
@@ -136,7 +141,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -166,7 +171,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "TransactionExecuted",
                 params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -179,7 +184,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "TransactionExecuted",
                 params: { tags: TAGS, logicRefs: [SHARED_LOGIC, UNIQUE_LOGIC_B] },
-                block: { number: 200, timestamp: TIMESTAMP },
+                block: { number: BLOCK + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -211,7 +216,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "TransactionExecuted",
                 params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },

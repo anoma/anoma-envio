@@ -17,8 +17,12 @@ import { b32, logicInput, complianceInput, action, encodeExecute } from "./fixtu
 describe("Multi-action decode (F1 + F2)", () => {
   const CHAIN = 1;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
-  const CONTRACT = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const BLOCK = 100;
+  // Must be an address indexed for this chain in config.yaml. Envio filters events
+  // from any other address before the handler runs.
+  const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+  // At or above the chain start_block in config.yaml; Envio filters anything below
+  // it before the handler runs, and a simulate item that reaches no handler errors.
+  const BLOCK = 425_772_700;
   const TIMESTAMP = 1700000000;
 
   // Action 0 — one compliance unit; logic inputs intentionally CREATED-then-CONSUMED
