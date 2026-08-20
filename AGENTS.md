@@ -16,9 +16,9 @@ the suite passes on a fresh clone and tells you nothing about whether the types 
 Do not read a green test run as "codegen is fine".
 
 ```bash
-corepack enable
+npm install -g pnpm   # corepack is gone from the Node images at 25
 pnpm install
-pnpm codegen        # required before typecheck / build / test
+pnpm codegen          # required before typecheck / build / test
 ```
 
 Re-run `pnpm codegen` after every edit to `config.yaml` or `schema.graphql`.
@@ -167,11 +167,20 @@ CLI's `--help` wins. Do not invent flags.
 
 ## Some branches deploy themselves
 
-Envio watches this repository and redeploys on push. `next` and the active v2 branch have
-autodeploy on, so a push there starts a live indexer; it is not a private branch. `main`
-is autodeploy off and deployed by hand. Work on a feature branch and open a PR; see
-[DEPLOYMENTS.md](DEPLOYMENTS.md) for which project watches which branch, and for the hours
-budget that makes stale deployments expensive.
+Envio watches this repository and redeploys on push. `next`, `main` and the pa-evm v2
+branch all have autodeploy on, so a push to any of them starts a live indexer; none is a
+private branch. `main` feeds the staging indexer, while the production and explorer
+indexers also track `main` but are deployed by hand.
+
+Work on a feature branch and open a PR; see [DEPLOYMENTS.md](DEPLOYMENTS.md) for which
+project watches which branch, and for the hours budget that makes stale deployments
+expensive.
+
+The pa-evm v2 migration is live work, not a hypothetical: `heueristik/pa-v2-events` has its
+own indexer, `anoma-envio-dev-v2`, and an open draft PR that rewrites `schema.graphql`,
+`src/types/` and the handlers for v2 events. Before deleting anything that looks dead on
+`main`, check whether that branch reshapes it. Two unreferenced event interfaces were
+nearly removed that way; v2 rebuilds them rather than dropping them.
 
 The hosted deployments are inspectable from the terminal with the separate `envio-cloud`
 package (`npx envio-cloud`), which is useful when a question is really about what is
@@ -191,7 +200,7 @@ its data, irreversibly. **Do not run any of the writing ones on your own initiat
 
 ## Conventions
 
-- Node per `engines` in `package.json`, pnpm via `corepack enable`. Prettier and ESLint
+- Node per `engines` in `package.json`, pnpm via `npm install -g pnpm`. Prettier and ESLint
   configs are authoritative; do not hand-format.
 - `.envio/types.d.ts` and `.env` are gitignored; never commit them. The `generated/` entry
   in `.gitignore` is a v2 leftover, v3 codegen does not create that directory. Never commit
