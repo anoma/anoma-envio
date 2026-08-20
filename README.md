@@ -8,6 +8,7 @@ over GraphQL.
 
 - Agent and contributor notes: [AGENTS.md](AGENTS.md)
 - Hosted deployments, tiers and the Envio Cloud CLI: [DEPLOYMENTS.md](DEPLOYMENTS.md)
+- Cutting a release: [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
 
 ## Quick start
 
@@ -80,13 +81,10 @@ ENVIO_GRAPHQL_URL="https://your-envio-endpoint" pnpm test
 `next` is development, `main` is staging, and a tag is production. Staging deploys itself from
 `main`; production is promoted by hand.
 
-1. Merge everything intended for the release into `main`.
-2. Confirm the contract addresses in `config.yaml` match the target pa-evm release.
-3. Bump `version` in `package.json`, commit, tag `vx.y.z`, and push with `--tags`.
-4. CI builds and publishes the tagged image.
-5. Deploy and promote it, then delete the superseded deployment. See
-   [DEPLOYMENTS.md](DEPLOYMENTS.md) for which project watches which branch and the
-   `envio-cloud` commands for each step.
+Follow [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md), which covers the sequence as
+`envio-cloud` commands: validating the change on `next`, verifying staging before tagging,
+deploying and soaking production before promoting it, checking the consumer apps at each
+stage, and deleting the superseded deployment afterwards.
 
 ## Troubleshooting
 
