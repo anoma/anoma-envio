@@ -62,14 +62,27 @@ while IFS= read -r line; do
 
     # Determine RPC URL: config.yaml rpc_config first, then a public archive RPC
     RPC_URL="${CONFIG_RPCS[$CHAIN_ID]:-${PUBLIC_RPCS[$CHAIN_ID]:-}}"
+    ALCHEMY_SLUG="${ALCHEMY_SLUGS[$CHAIN_ID]:-}"
+
+    # Fail here rather than let CI go green on nothing. A chain with no reachable archive
+    # RPC makes config-validation.test.ts skip every one of its checks, which reports as a
+    # passing job. Adding a chain to config.yaml therefore has to name its RPC too.
+    if [ -z "$RPC_URL" ] && [ -z "$ALCHEMY_SLUG" ]; then
+      echo "Error: chain $CHAIN_ID ($RAW_NAME) has no archive RPC, so CI could not validate it." >&2
+      echo "  Fix one of the following:" >&2
+      echo "    - add 'rpc: { url: ... }' to the chain entry in $CONFIG" >&2
+      echo "    - add an ALCHEMY_SLUGS entry in $0 (if Alchemy supports the chain)" >&2
+      echo "    - add a PUBLIC_RPCS entry in $0 (public archive RPC)" >&2
+      exit 1
+    fi
 
     ENTRY="{\"chain_id\":$CHAIN_ID,\"name\":\"$DISPLAY_NAME\",\"rpc_key\":\"$RPC_KEY\""
     if [ -n "$RPC_URL" ]; then
       ENTRY+=",\"rpc_url\":\"$RPC_URL\""
     fi
     # Add Alchemy slug for chains that support it (used to construct archive RPC URL in CI)
-    if [ -n "${ALCHEMY_SLUGS[$CHAIN_ID]:-}" ]; then
-      ENTRY+=",\"alchemy\":\"${ALCHEMY_SLUGS[$CHAIN_ID]}\""
+    if [ -n "$ALCHEMY_SLUG" ]; then
+      ENTRY+=",\"alchemy\":\"$ALCHEMY_SLUG\""
     fi
     ENTRY+="}"
     ENTRIES+=("$ENTRY")
