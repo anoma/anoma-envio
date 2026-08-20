@@ -458,15 +458,20 @@ indexer.onEvent(
         }
       }
 
-      pendingEntities.delete(evmTxId);
+      if (!context.isPreload) {
+        pendingEntities.delete(evmTxId);
+      }
     }
 
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       transactions: 1,
     });
 
-    // Clear the cache after processing is complete
-    clearDecodedCache(txHash);
+    // Clear the cache after processing is complete. Not during preload: the sequential pass
+    // still has to decode this transaction.
+    if (!context.isPreload) {
+      clearDecodedCache(txHash);
+    }
   }
 );
 
@@ -502,7 +507,12 @@ indexer.onEvent(
     let actionIndex = pending.actions.get(actionId);
     if (actionIndex === undefined) {
       actionIndex = pending.actions.size;
-      pending.actions.set(actionId, actionIndex);
+      // The preload pass runs in parallel, so two ActionExecuted of the same transaction can
+      // reach this concurrently and claim the same index. Only the sequential pass records it;
+      // a provisional index in preload at worst warms a cache entry that is not needed.
+      if (!context.isPreload) {
+        pending.actions.set(actionId, actionIndex);
+      }
     }
 
     if (decoded && actionIndex >= decoded.actions.length) {
@@ -586,7 +596,9 @@ indexer.onEvent(
         logicRef: logicRef,
         resource_id: resourceId,
       });
-      pending.tags.add(tagId);
+      if (!context.isPreload) {
+        pending.tags.add(tagId);
+      }
 
       const resourceEntity: Resource = {
         id: resourceId,
@@ -721,7 +733,9 @@ indexer.onEvent(
         resource_id: undefined,
       };
       context.Tag.set(tagEntity);
-      getPendingEntities(evmTxId).tags.add(tagId);
+      if (!context.isPreload) {
+        getPendingEntities(evmTxId).tags.add(tagId);
+      }
     }
   }
 );
