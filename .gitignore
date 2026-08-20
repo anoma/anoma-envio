@@ -30,3 +30,7 @@ yarn-error.log*
 
 # Test coverage
 coverage/
+
+# pnpm 10+ writes this when you run `pnpm approve-builds`; it breaks the
+# pinned pnpm 9 used by CI and the image with "packages field missing or empty"
+pnpm-workspace.yaml
