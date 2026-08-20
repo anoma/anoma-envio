@@ -1,7 +1,13 @@
 name: CI
 
 on:
+  # Scoped to the integration branches. Without a branch filter, any branch with
+  # an open PR fires push and pull_request both, and the whole matrix runs twice.
   push:
+    branches:
+      - main
+      - next
+      - staging
   pull_request:
     branches:
       - main
