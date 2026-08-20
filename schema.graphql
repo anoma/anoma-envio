@@ -1,11 +1,11 @@
 # Anoma Protocol Adapter GraphQL Schema
-# Entities follow Anoma specification from pa-evm/contracts/src/Types.sol
+# Entities follow Anoma specification from pa-evm/contracts/src/interfaces/IProtocolAdapter.sol
 
 # ============================================
 # Enums
 # ============================================
 
-# Blob deletion criterion from PA-EVM Logic.DeletionCriterion
+# Blob deletion criterion from PA-EVM DeletionCriterion
 enum DeletionCriterion {
   immediately  # Blob should be deleted after processing (value: 0)
   never        # Blob should be persisted permanently (value: 1)
@@ -58,9 +58,9 @@ type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["cha
   timestamp: BigInt! @index
   chainId: BigInt! @index
 
-  # From TransactionExecuted event
-  tagHashes: [String!]!
-  logicRefs: [String!]!
+  # From TransactionExecuted event: the Keccak-256 hash of the concatenated action tree roots —
+  # the message the delta proof signs, unique per transaction and known before submission.
+  transactionId: String! @index
 
   # Proofs (from calldata decoding)
   deltaProof: String
@@ -74,16 +74,24 @@ type Transaction @index(fields: ["chainId", "blockNumber"]) @index(fields: ["cha
   tags: [Tag!]! @derivedFrom(field: "transaction")
 }
 
-# Action - Provides context separation between non-intersecting sets of resources
-# Corresponds to: struct Action { Logic.VerifierInput[] logicVerifierInputs; Compliance.VerifierInput[] complianceVerifierInputs; }
+# Action - Provides context separation between non-intersecting sets of resources.
+# One action is one compliance unit constraining any number of consumed and created resources.
+# Corresponds to: struct Action { Consumed[] consumed; Created[] created; Delta unitDelta; bytes32 actionTreeRoot; }
 type Action @index(fields: ["chainId", "blockNumber"]) {
   id: ID!
-  index: Int!
-  actionTreeRoot: String!
-  actionTagCount: Int!
+  index: Int! # Position among the transaction's actions, in ActionExecuted arrival order
+  logIndex: Int! @index # EVM log index of the ActionExecuted event
+  actionTreeRoot: String! @index
+  actionTagCount: Int! # consumedCount + createdCount
+  consumedCount: Int!
+  createdCount: Int!
   blockNumber: BigInt! @index
   chainId: BigInt! @index
   timestamp: BigInt! @index
+
+  # The delta value of the action's compliance unit (secp256k1 point), as decimal uint256 strings
+  unitDeltaX: String
+  unitDeltaY: String
 
   # Stable EVM-tx correlation key ({chainId}_{txHash}); lets TransactionExecuted
   # locate this action without cross-event module state.
@@ -91,59 +99,32 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
 
   # Relationships
   transaction: Transaction! @index
-  complianceUnits: [ComplianceUnit!]! @derivedFrom(field: "action")
-  logicInputs: [LogicInput!]! @derivedFrom(field: "action")
+  resources: [Resource!]! @derivedFrom(field: "action")
 }
 
-# ComplianceUnit - One consumed + one created resource pair
-# Corresponds to: Compliance.VerifierInput { bytes proof; Instance instance; }
-type ComplianceUnit @index(fields: ["chainId", "timestamp"]) {
+# Resource - The public data of one resource consumed or created by an action.
+# Corresponds to: struct Consumed { bytes32 nullifier; bytes32 logicRef; bytes32 commitmentTreeRoot; AppData appData; }
+#            and: struct Created  { bytes32 commitment; bytes32 logicRef; AppData appData; }
+type Resource @index(fields: ["chainId", "timestamp"]) {
   id: ID!
-  index: Int!
+  index: Int! # Position in the action's canonical tag order (consumed first, then created)
   timestamp: BigInt! @index
   chainId: BigInt! @index
 
-  # Proof
-  proof: String
-
-  # Compliance.Instance fields
-  # ConsumedRefs
-  consumedNullifier: String!
-  consumedLogicRef: String!
-  consumedCommitmentTreeRoot: String!
-
-  # CreatedRefs
-  createdCommitment: String!
-  createdLogicRef: String!
-
-  # Delta values (secp256k1 point)
-  unitDeltaX: String!
-  unitDeltaY: String!
-
-  # Relationships
-  action: Action! @index
-  consumedTag: Tag
-  createdTag: Tag
-}
-
-# LogicInput - Logic verifier input for a resource
-# Corresponds to: Logic.VerifierInput { bytes32 tag; bytes32 verifyingKey; AppData appData; bytes proof; }
-type LogicInput @index(fields: ["chainId", "timestamp"]) {
-  id: ID!
-  index: Int!
-  timestamp: BigInt! @index
-  chainId: BigInt! @index
-
-  tagHash: String!
-  verifyingKey: String! @index # The logic verifying key (verifyingKey in PA-EVM Logic.VerifierInput)
+  tagHash: String! # Nullifier when consumed, commitment when created
+  logicRef: String! @index # Reference to the verifying key of the resource logic
   isConsumed: Boolean!
-  proof: String
 
-  # AppData payload counts
-  resourcePayloadCount: Int!
-  discoveryPayloadCount: Int!
-  externalPayloadCount: Int!
-  applicationPayloadCount: Int!
+  # The historical commitment tree root the resource's inclusion was proven against.
+  # Consumed resources only — a created resource has no such root yet.
+  commitmentTreeRoot: String
+
+  # AppData payload counts. Null when the calldata could not be decoded — the tag, logicRef and
+  # side come from the event, but the payload counts exist only in calldata.
+  resourcePayloadCount: Int
+  discoveryPayloadCount: Int
+  externalPayloadCount: Int
+  applicationPayloadCount: Int
 
   # Relationships
   action: Action! @index
@@ -154,19 +135,20 @@ type LogicInput @index(fields: ["chainId", "timestamp"]) {
 type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "timestamp"]) {
   id: ID!
   tagHash: String! @index # Nullifier (if consumed) or commitment (if created)
-  index: Int! # Position in TransactionExecuted.tags array
+  index: Int! # Position within one action (consumed nullifiers, then created commitments)
+  # (actionLogIndex, index) orders a transaction's tags; index alone repeats across actions.
+  actionLogIndex: Int @index
   isConsumed: Boolean! # true = nullifier (consumed), false = commitment (created)
   blockNumber: BigInt! @index
   timestamp: BigInt! @index
   chainId: BigInt! @index
 
-  # Logic reference from TransactionExecuted.logicRefs
+  # Logic reference from ActionExecuted.consumedLogicRefs / .createdLogicRefs
   logicRef: String
 
   # Relationships
   transaction: Transaction! @index
-  logicInput: LogicInput
-  complianceUnit: ComplianceUnit # The compliance unit this tag belongs to (use isConsumed to determine side)
+  resource: Resource
   payloads: [Payload!]! @derivedFrom(field: "tag")
 }
 
@@ -196,6 +178,19 @@ type CommitmentTreeRoot @index(fields: ["blockNumber", "logIndex"]) @index(field
   root: String!
   blockNumber: BigInt! @index
   logIndex: Int!  # EVM log index — tiebreaker for ordering within a block
+  txHash: String!
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
+}
+
+# KindTableCommitment - The commitment of the kind table transactions must be proven against.
+# One row per KindTableCommitmentUpdated event; the initialize() call emits the empty-table
+# commitment, so the latest row per chain is the table currently in force.
+type KindTableCommitment @index(fields: ["chainId", "blockNumber"]) {
+  id: ID!
+  kindTableCommitment: String! @index
+  blockNumber: BigInt! @index
+  logIndex: Int! # EVM log index — tiebreaker for ordering within a block
   txHash: String!
   timestamp: BigInt! @index
   chainId: BigInt! @index
@@ -236,6 +231,19 @@ type ProtocolAdapterPaused {
   chainId: BigInt!
 }
 
+# ProtocolAdapterUpgraded - ERC-1967 implementation change behind a v2 proxy.
+# The adapter address is fixed but the implementation behind it is not, and the implementation is
+# what decides the event shapes emitted. One row per Upgraded event; the latest row at or before a
+# block identifies the implementation in force there.
+type ProtocolAdapterUpgraded {
+  id: ID!
+  implementation: String!
+  blockNumber: BigInt!
+  txHash: String!
+  timestamp: BigInt!
+  chainId: BigInt!
+}
+
 # ============================================
 # Distinct Logic Tracking
 # ============================================
@@ -263,8 +271,7 @@ type Stats {
   tagsConsumed: BigInt!
   tagsCreated: BigInt!
   actions: BigInt!
-  complianceUnits: BigInt!
-  logicInputs: BigInt!
+  resources: BigInt!
   commitmentRoots: BigInt!
   distinctLogics: BigInt!
   externalCalls: BigInt!
@@ -286,8 +293,7 @@ type DailyStats {
   tagsConsumed: BigInt!
   tagsCreated: BigInt!
   actions: BigInt!
-  complianceUnits: BigInt!
-  logicInputs: BigInt!
+  resources: BigInt!
   commitmentRoots: BigInt!
   externalCalls: BigInt!
   forwarderCalls: BigInt!
@@ -309,8 +315,7 @@ type ChainStats {
   tagsConsumed: BigInt!
   tagsCreated: BigInt!
   actions: BigInt!
-  complianceUnits: BigInt!
-  logicInputs: BigInt!
+  resources: BigInt!
   commitmentRoots: BigInt!
   distinctLogics: BigInt!
   externalCalls: BigInt!
@@ -335,8 +340,7 @@ type ChainDailyStats @index(fields: ["chainId", "dayTimestamp"]) {
   tagsConsumed: BigInt!
   tagsCreated: BigInt!
   actions: BigInt!
-  complianceUnits: BigInt!
-  logicInputs: BigInt!
+  resources: BigInt!
   commitmentRoots: BigInt!
   externalCalls: BigInt!
   forwarderCalls: BigInt!
@@ -347,13 +351,13 @@ type ChainDailyStats @index(fields: ["chainId", "dayTimestamp"]) {
   lastUpdatedTimestamp: BigInt!
 }
 
-# ChainLogicRef - Per-chain first-seen tracker for verifyingKeys.
-# id: "<chainId>-<verifyingKey>". Existence of a row means the key has been
+# ChainLogicRef - Per-chain first-seen tracker for logic references.
+# id: "<chainId>-<logicRef>". Existence of a row means the logic has been
 # seen on that chain; absence triggers a ChainStats.distinctLogics increment.
 type ChainLogicRef {
   id: ID!
   chainId: BigInt! @index
-  verifyingKey: String! @index
+  logicRef: String! @index
   firstSeenBlock: BigInt!
   firstSeenTimestamp: BigInt!
   firstSeenTxHash: String!

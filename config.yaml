@@ -4,17 +4,19 @@ contracts:
   - name: ProtocolAdapter
     handler: src/EventHandlers.ts
     events:
-      - event: ActionExecuted(bytes32 actionTreeRoot, uint256 actionTagCount)
+      - event: ActionExecuted(bytes32 actionTreeRoot, bytes32[] nullifiers, bytes32[] consumedLogicRefs, bytes32[] commitments, bytes32[] createdLogicRefs)
       - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: CommitmentTreeRootAdded(bytes32 root)
       - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: KindTableCommitmentUpdated(bytes32 indexed kindTableCommitment)
       - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
       - event: Paused(address account)
       - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)
-      - event: TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
+      - event: TransactionExecuted(bytes32 indexed transactionId)
       - event: Unpaused(address account)
+      - event: Upgraded(address indexed implementation)
 field_selection:
   transaction_fields:
     - "hash"
@@ -22,60 +24,24 @@ field_selection:
     - "to"
     - "value"
     - "input"
-# Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
+# The events above are the pa-evm v2 shapes, taken from contracts/v2.0.0-alpha.5.
+# Addresses are the ERC-1967 proxies, not the implementations: the proxy holds the state and
+# emits the events. start_block is the proxy deployment block.
+# v2 addresses: https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json
 chains:
-  - id: 1 # Mainnet
-    start_block: 24326330
+  - id: 84532 # Base Sepolia
+    start_block: 45161853
     contracts:
       - name: ProtocolAdapter
         address:
-          - "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF"
-  - id: 42161 # Arbitrum
-    start_block: 425772682
+          # The deployment that has actually executed transactions to date.
+          - "0xED41cB03feaFB2159182b385873BFa858C577e96"
+          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
+          - "0x6BbDF59F869957dDC96e8a4d79077613727e6537"
+  - id: 11155111 # Sepolia
+    start_block: 11480805
     contracts:
       - name: ProtocolAdapter
         address:
-          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
-  - id: 56 # BSC
-    start_block: 84845926
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0xFC44b66a39fe6923Ad8d3c93bFeC369728862B68"
-  - id: 143 # Monad
-    start_block: 77753171
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 988 # Stable
-    start_block: 29105471
-    # Stable is not supported by HyperSync, so index via RPC.
-    rpc:
-      url: https://stable-mainnet.g.alchemy.com/v2/alch_m9ydUgOvlaR4K0g_U7ON6
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 4326 # MegaETH
-    start_block: 19402510
-    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
-    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://4326.hypersync.xyz" }
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 1313161554 # Aurora
-    start_block: 203917905
-    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
-    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://1313161554.hypersync.xyz" }
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 8453 # Base
-    start_block: 41364872
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x094FCC095323080e71a037b2B1e3519c07dd84F8"
+          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
+          - "0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE"

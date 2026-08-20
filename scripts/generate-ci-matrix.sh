@@ -21,22 +21,20 @@ fi
 # Well-known Alchemy network slugs for archive RPC access.
 # Used in CI validation for chains that need archive queries (eth_getCode at historical blocks).
 declare -A ALCHEMY_SLUGS=(
-  [1]="eth-mainnet"
-  [42161]="arb-mainnet"
-  [8453]="base-mainnet"
-  [10]="opt-mainnet"
-  [56]="bnb-mainnet"
-  [143]="monad-mainnet"
   [11155111]="eth-sepolia"
   [84532]="base-sepolia"
+  # [1]="eth-mainnet"
+  # [42161]="arb-mainnet"
+  # [8453]="base-mainnet"
+  # [10]="opt-mainnet"
+  # [56]="bnb-mainnet"
+  # [143]="monad-mainnet"
 )
 
 # Public archive RPCs for HyperSync chains that Alchemy does not cover.
-# These chains index via HyperSync (no rpc_config in config.yaml), but CI still
-# needs an archive RPC for start_block validation and integration tip detection.
 declare -A PUBLIC_RPCS=(
-  [4326]="https://mainnet.megaeth.com/rpc"
-  [1313161554]="https://mainnet.aurora.dev"
+  # [4326]="https://mainnet.megaeth.com/rpc"
+  # [1313161554]="https://mainnet.aurora.dev"
 )
 
 # Extract rpc_config URLs from config.yaml using yq (if available)
@@ -64,9 +62,8 @@ while IFS= read -r line; do
     RPC_URL="${CONFIG_RPCS[$CHAIN_ID]:-${PUBLIC_RPCS[$CHAIN_ID]:-}}"
     ALCHEMY_SLUG="${ALCHEMY_SLUGS[$CHAIN_ID]:-}"
 
-    # Fail here rather than let CI go green on nothing. A chain with no reachable archive
-    # RPC makes config-validation.test.ts skip every one of its checks, which reports as a
-    # passing job. Adding a chain to config.yaml therefore has to name its RPC too.
+    # Without an archive RPC, config-validation.test.ts skips every check and the job
+    # still reports green.
     if [ -z "$RPC_URL" ] && [ -z "$ALCHEMY_SLUG" ]; then
       echo "Error: chain $CHAIN_ID ($RAW_NAME) has no archive RPC, so CI could not validate it." >&2
       echo "  Fix one of the following:" >&2

@@ -3,15 +3,32 @@ import {
   decodeExecuteCalldata,
   isExecuteCalldata,
   getActionFromCalldata,
+  EXECUTE_SELECTOR,
 } from "../../src/decoders/ActionDecoder.js";
 import { DeletionCriterion } from "../../src/types/index.js";
-import {
-  CALLDATA,
-  EXTERNAL_PAYLOAD_TAG,
-  EXTERNAL_PAYLOAD_BLOB,
-} from "../fixtures/base-tx-0xdc958fa7.js";
+import { b32, blob, consumed, created, action, encodeExecute } from "../fixtures/encode-tx.js";
+
+/**
+ * The selector the compiler reports for pa-evm's `execute`, from
+ * `forge inspect src/ProtocolAdapter.sol:ProtocolAdapter methodIdentifiers`.
+ *
+ * Because a selector hashes the whole nested tuple structure, pinning it is what makes the
+ * synthetic round-trips below trustworthy: any field this decoder's ABI got wrong — a type, an
+ * order, a missing member — changes the selector and fails here rather than round-tripping
+ * happily through its own mistake.
+ */
+const PA_V2_EXECUTE_SELECTOR = "0x73ab9916";
+
+/** A superseded execute() struct shape, kept so a regression away from the v2 ABI is caught. */
+const SUPERSEDED_EXECUTE_SELECTOR = "0xed3cf91f";
 
 describe("ActionDecoder", () => {
+  describe("EXECUTE_SELECTOR", () => {
+    it("should match the selector the contract compiles to", () => {
+      expect(EXECUTE_SELECTOR).toBe(PA_V2_EXECUTE_SELECTOR);
+    });
+  });
+
   describe("isExecuteCalldata", () => {
     it("should return false for empty input", () => {
       expect(isExecuteCalldata("")).toBe(false);
@@ -23,14 +40,18 @@ describe("ActionDecoder", () => {
       expect(isExecuteCalldata("0xdeadbeef")).toBe(false);
     });
 
+    it("should return false for a superseded execute selector", () => {
+      expect(isExecuteCalldata(SUPERSEDED_EXECUTE_SELECTOR)).toBe(false);
+    });
+
     it("should return true for execute function selector", () => {
-      expect(isExecuteCalldata("0xed3cf91f")).toBe(true);
-      expect(isExecuteCalldata("0xed3cf91f00000000")).toBe(true);
+      expect(isExecuteCalldata(PA_V2_EXECUTE_SELECTOR)).toBe(true);
+      expect(isExecuteCalldata(`${PA_V2_EXECUTE_SELECTOR}00000000`)).toBe(true);
     });
 
     it("should require 0x prefix for input", () => {
       // The function checks for proper hex format starting with 0x
-      expect(isExecuteCalldata("ed3cf91f")).toBe(false);
+      expect(isExecuteCalldata(PA_V2_EXECUTE_SELECTOR.slice(2))).toBe(false);
     });
   });
 
@@ -53,7 +74,7 @@ describe("ActionDecoder", () => {
 
     it("should return error for malformed calldata", () => {
       // Valid selector but truncated/invalid data
-      const result = decodeExecuteCalldata("0xed3cf91f0000");
+      const result = decodeExecuteCalldata(`${PA_V2_EXECUTE_SELECTOR}0000`);
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain("Failed to decode calldata");
@@ -69,80 +90,90 @@ describe("ActionDecoder", () => {
 
     it("should return null for invalid action index", () => {
       // Even with valid calldata, negative index should fail
-      expect(getActionFromCalldata("0xed3cf91f", -1)).toBeNull();
+      expect(getActionFromCalldata(PA_V2_EXECUTE_SELECTOR, -1)).toBeNull();
     });
   });
 
-  // Real calldata from Base tx 0xdc958fa7... (pa-evm#474)
-  // This tx has externalPayload.length=1 but no ExternalPayload event emitted.
-  describe("real calldata: external payload extraction (pa-evm#474)", () => {
-    it("should decode the transaction with 1 action and 2 logic inputs", () => {
-      const result = decodeExecuteCalldata(CALLDATA);
+  describe("round-trip over the v2 struct shape", () => {
+    const root = b32("root0");
+    const calldata = encodeExecute([
+      action(
+        [consumed(b32("n0"), b32("logicA"), { resourcePayload: [blob("0xaa")] })],
+        [
+          created(b32("c0"), b32("logicB"), { externalPayload: [blob("0xbb")] }),
+          created(b32("c1"), b32("logicA")),
+        ],
+        root,
+        { x: 7n, y: 9n }
+      ),
+    ]);
+
+    it("should decode an n:m action with its unit delta and action tree root", () => {
+      const result = decodeExecuteCalldata(calldata);
       expect(result.success).toBe(true);
       if (!result.success) {
         return;
       }
 
       expect(result.transaction.actions).toHaveLength(1);
-      expect(result.transaction.actions[0].logicVerifierInputs).toHaveLength(2);
-      expect(result.transaction.actions[0].complianceVerifierInputs).toHaveLength(1);
+      const decoded = result.transaction.actions[0];
+      expect(decoded.consumed).toHaveLength(1);
+      expect(decoded.created).toHaveLength(2);
+      expect(decoded.actionTreeRoot).toBe(root);
+      expect(decoded.unitDelta).toEqual({ x: 7n, y: 9n });
     });
 
-    it("should have 0 external payloads on LI[0] (consumed resource)", () => {
-      const action = getActionFromCalldata(CALLDATA, 0);
-      expect(action).not.toBeNull();
-      if (!action) {
+    it("should carry the logic reference and commitment tree root of a consumed resource", () => {
+      const decoded = getActionFromCalldata(calldata, 0);
+      expect(decoded).not.toBeNull();
+      if (!decoded) {
         return;
       }
 
-      const li0 = action.logicVerifierInputs[0];
-      expect(li0.appData.externalPayload).toHaveLength(0);
-      expect(li0.appData.resourcePayload).toHaveLength(1);
-      expect(li0.appData.discoveryPayload).toHaveLength(1);
+      expect(decoded.consumed[0].nullifier).toBe(b32("n0"));
+      expect(decoded.consumed[0].logicRef).toBe(b32("logicA"));
+      expect(decoded.consumed[0].commitmentTreeRoot).toBe(`0x${"00".repeat(32)}`);
     });
 
-    it("should extract 1 external payload from LI[1] (created resource)", () => {
-      const action = getActionFromCalldata(CALLDATA, 0);
-      expect(action).not.toBeNull();
-      if (!action) {
+    it("should carry the app data payloads of each resource", () => {
+      const decoded = getActionFromCalldata(calldata, 0);
+      expect(decoded).not.toBeNull();
+      if (!decoded) {
         return;
       }
 
-      const li1 = action.logicVerifierInputs[1];
-      expect(li1.appData.externalPayload).toHaveLength(1);
-      expect(li1.appData.resourcePayload).toHaveLength(0);
-      expect(li1.appData.discoveryPayload).toHaveLength(0);
+      expect(decoded.consumed[0].appData.resourcePayload).toHaveLength(1);
+      expect(decoded.consumed[0].appData.externalPayload).toHaveLength(0);
+
+      const externalPayload = decoded.created[0].appData.externalPayload;
+      expect(externalPayload).toHaveLength(1);
+      expect(externalPayload[0].blob).toBe("0xbb");
+      expect(externalPayload[0].deletionCriterion).toBe(DeletionCriterion.Immediately);
+
+      expect(decoded.created[1].appData.applicationPayload).toHaveLength(0);
     });
 
-    it("should have correct tag, blob, and deletionCriterion on the external payload", () => {
-      const action = getActionFromCalldata(CALLDATA, 0);
-      expect(action).not.toBeNull();
-      if (!action) {
+    it("should preserve the deletion criterion of a persisted blob", () => {
+      const persisted = encodeExecute([
+        action(
+          [],
+          [
+            created(b32("c0"), b32("logicA"), {
+              applicationPayload: [blob("0xcc", DeletionCriterion.Never)],
+            }),
+          ]
+        ),
+      ]);
+
+      const decoded = getActionFromCalldata(persisted, 0);
+      expect(decoded).not.toBeNull();
+      if (!decoded) {
         return;
       }
 
-      const li1 = action.logicVerifierInputs[1];
-      expect(li1.tag).toBe(EXTERNAL_PAYLOAD_TAG);
-
-      const ep = li1.appData.externalPayload[0];
-      expect(ep.deletionCriterion).toBe(DeletionCriterion.Immediately);
-      expect(ep.blob).toBe(EXTERNAL_PAYLOAD_BLOB);
-    });
-
-    it("should have a blob containing the USDC forwarder address", () => {
-      const action = getActionFromCalldata(CALLDATA, 0);
-      expect(action).not.toBeNull();
-      if (!action) {
-        return;
-      }
-
-      const ep = action.logicVerifierInputs[1].appData.externalPayload[0];
-      // The blob is ABI-encoded data containing the forwarder address and Base USDC
-      const blobLower = ep.blob.toLowerCase();
-      // ERC20 forwarder: 0xfaa9de773be11fc759a16f294d32bb2261bf818b
-      expect(blobLower).toContain("faa9de773be11fc759a16f294d32bb2261bf818b");
-      // Base USDC: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
-      expect(blobLower).toContain("833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+      expect(decoded.created[0].appData.applicationPayload[0].deletionCriterion).toBe(
+        DeletionCriterion.Never
+      );
     });
   });
 });

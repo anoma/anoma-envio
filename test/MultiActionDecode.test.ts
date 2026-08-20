@@ -1,47 +1,57 @@
 /**
- * Multi-action decode correctness (F1 + F2).
+ * Multi-action decode correctness.
  *
- * F1: a single execute() with two actions that share the same tag count. Each
- *     ActionExecuted must map to ITS OWN decoded action (by arrival order), not to
- *     the first tag-count match. The old code assigned both actions' compliance/logic
- *     data from decoded.actions[0].
+ * F1: a single execute() with two actions that carry the same tag count. Each ActionExecuted must
+ *     map to ITS OWN decoded action (by arrival order), not to the first tag-count match. The old
+ *     code assigned both actions' decoded data from decoded.actions[0].
  *
- * F2: an action whose logicVerifierInputs are NOT in interleaved consumed/created
- *     order. LogicInput.isConsumed must be derived from tag identity (membership in the
- *     compliance units' nullifier set), not from array position parity.
+ * Whether a resource's consumed/created side follows tag identity rather than array position is
+ * not something this schema can get wrong: ActionExecuted carries the nullifiers and the
+ * commitments as separate arrays. The last case below pins that they are read as such.
  */
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
-import { b32, logicInput, complianceInput, action, encodeExecute } from "./fixtures/encode-tx.js";
+import { b32, blob, consumed, created, action, encodeExecute } from "./fixtures/encode-tx.js";
 
-describe("Multi-action decode (F1 + F2)", () => {
-  const CHAIN = 1;
+describe("Multi-action decode", () => {
+  const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   // Must be an address indexed for this chain in config.yaml. Envio filters events
   // from any other address before the handler runs.
-  const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+  const CONTRACT = "0xED41cB03feaFB2159182b385873BFa858C577e96";
   // At or above the chain start_block in config.yaml; Envio filters anything below
   // it before the handler runs, and a simulate item that reaches no handler errors.
-  const BLOCK = 425_772_700;
+  const BLOCK = 45_200_000;
   const TIMESTAMP = 1700000000;
 
-  // Action 0 — one compliance unit; logic inputs intentionally CREATED-then-CONSUMED
-  // (non-interleaved) to exercise F2.
   const N0 = b32("nullifier-0");
   const C0 = b32("commitment-0");
-  // Action 1 — one compliance unit; same tag count (2) as action 0 to exercise F1.
   const N1 = b32("nullifier-1");
   const C1 = b32("commitment-1");
+
+  const VK_N0 = b32("vk-n0");
+  const VK_C0 = b32("vk-c0");
+  const VK_N1 = b32("vk-n1");
+  const VK_C1 = b32("vk-c1");
 
   const ROOT0 = b32("action-root-0");
   const ROOT1 = b32("action-root-1");
 
+  // Both actions have the same tag count (1 consumed + 1 created) but differ in unit delta and in
+  // payload counts, so a mis-mapping between event and calldata is observable.
   const CALLDATA = encodeExecute([
     action(
-      [logicInput(C0, b32("vk-c0")), logicInput(N0, b32("vk-n0"))], // non-interleaved
-      [complianceInput(N0, C0)]
+      [consumed(N0, VK_N0, { resourcePayload: [blob("0xaa")] })],
+      [created(C0, VK_C0)],
+      ROOT0,
+      { x: 1n, y: 2n }
     ),
-    action([logicInput(N1, b32("vk-n1")), logicInput(C1, b32("vk-c1"))], [complianceInput(N1, C1)]),
+    action(
+      [consumed(N1, VK_N1, { resourcePayload: [blob("0xbb")], discoveryPayload: [blob("0xcc")] })],
+      [created(C1, VK_C1)],
+      ROOT1,
+      { x: 3n, y: 4n }
+    ),
   ]);
 
   const evmTxId = `${CHAIN}_${TX_HASH}`;
@@ -56,7 +66,13 @@ describe("Multi-action decode (F1 + F2)", () => {
             {
               contract: "ProtocolAdapter",
               event: "ActionExecuted",
-              params: { actionTreeRoot: ROOT0, actionTagCount: 2n },
+              params: {
+                actionTreeRoot: ROOT0,
+                nullifiers: [N0],
+                consumedLogicRefs: [VK_N0],
+                commitments: [C0],
+                createdLogicRefs: [VK_C0],
+              },
               srcAddress: CONTRACT,
               block: { number: BLOCK, timestamp: TIMESTAMP },
               transaction: tx,
@@ -65,7 +81,13 @@ describe("Multi-action decode (F1 + F2)", () => {
             {
               contract: "ProtocolAdapter",
               event: "ActionExecuted",
-              params: { actionTreeRoot: ROOT1, actionTagCount: 2n },
+              params: {
+                actionTreeRoot: ROOT1,
+                nullifiers: [N1],
+                consumedLogicRefs: [VK_N1],
+                commitments: [C1],
+                createdLogicRefs: [VK_C1],
+              },
               srcAddress: CONTRACT,
               block: { number: BLOCK, timestamp: TIMESTAMP },
               transaction: tx,
@@ -74,10 +96,7 @@ describe("Multi-action decode (F1 + F2)", () => {
             {
               contract: "ProtocolAdapter",
               event: "TransactionExecuted",
-              params: {
-                tags: [N0, C0, N1, C1],
-                logicRefs: [b32("vk-n0"), b32("vk-c0"), b32("vk-n1"), b32("vk-c1")],
-              },
+              params: { transactionId: b32("transaction-0") },
               srcAddress: CONTRACT,
               block: { number: BLOCK, timestamp: TIMESTAMP },
               transaction: tx,
@@ -90,44 +109,92 @@ describe("Multi-action decode (F1 + F2)", () => {
     return indexer;
   }
 
-  it("F1: each action's ComplianceUnit carries its OWN decoded data", async () => {
+  it("F1: each action carries its OWN decoded unit delta", async () => {
     const indexer = await run();
-    const cus = await indexer.ComplianceUnit.getAll();
-    expect(cus).toHaveLength(2);
+    const actions = await indexer.Action.getAll();
+    expect(actions).toHaveLength(2);
 
-    const cu0 = cus.find((c) => c.action_id === `${evmTxId}_${ROOT0}`);
-    const cu1 = cus.find((c) => c.action_id === `${evmTxId}_${ROOT1}`);
-    expect(cu0, "action 0 compliance unit").toBeDefined();
-    expect(cu1, "action 1 compliance unit").toBeDefined();
+    const action0 = actions.find((a) => a.id === `${evmTxId}_${ROOT0}`);
+    const action1 = actions.find((a) => a.id === `${evmTxId}_${ROOT1}`);
+    expect(action0, "action 0").toBeDefined();
+    expect(action1, "action 1").toBeDefined();
 
-    expect(cu0!.consumedNullifier).toBe(N0);
-    expect(cu0!.createdCommitment).toBe(C0);
+    expect(action0!.unitDeltaX).toBe("1");
+    expect(action0!.unitDeltaY).toBe("2");
 
-    // The bug: action 1 would inherit action 0's data (N0/C0).
-    expect(cu1!.consumedNullifier).toBe(N1);
-    expect(cu1!.createdCommitment).toBe(C1);
-    expect(cu1!.consumedNullifier).not.toBe(N0);
+    // The bug: action 1 would inherit action 0's decoded data.
+    expect(action1!.unitDeltaX).toBe("3");
+    expect(action1!.unitDeltaY).toBe("4");
   });
 
-  it("F2: LogicInput.isConsumed follows tag identity, not array position", async () => {
+  it("F1: each action's resources carry their OWN decoded payload counts", async () => {
     const indexer = await run();
-    const lis = await indexer.LogicInput.getAll();
+    const resources = await indexer.Resource.getAll();
 
-    // Action 0's logic inputs are ordered [created C0, consumed N0].
-    const liC0 = lis.find((l) => l.action_id === `${evmTxId}_${ROOT0}` && l.tagHash === C0);
-    const liN0 = lis.find((l) => l.action_id === `${evmTxId}_${ROOT0}` && l.tagHash === N0);
-    expect(liC0, "logic input for created tag C0").toBeDefined();
-    expect(liN0, "logic input for consumed tag N0").toBeDefined();
+    const consumed0 = resources.find((r) => r.tagHash === N0);
+    const consumed1 = resources.find((r) => r.tagHash === N1);
+    expect(consumed0, "consumed resource of action 0").toBeDefined();
+    expect(consumed1, "consumed resource of action 1").toBeDefined();
 
-    // Despite C0 being at array index 0 (even), it is a CREATED resource.
-    expect(liC0!.isConsumed).toBe(false);
-    // N0 is at array index 1 (odd) but is a CONSUMED resource.
-    expect(liN0!.isConsumed).toBe(true);
+    expect(consumed0!.resourcePayloadCount).toBe(1);
+    expect(consumed0!.discoveryPayloadCount).toBe(0);
 
-    // Action 1 (interleaved order) stays correct too.
-    const liN1 = lis.find((l) => l.action_id === `${evmTxId}_${ROOT1}` && l.tagHash === N1);
-    const liC1 = lis.find((l) => l.action_id === `${evmTxId}_${ROOT1}` && l.tagHash === C1);
-    expect(liN1!.isConsumed).toBe(true);
-    expect(liC1!.isConsumed).toBe(false);
+    expect(consumed1!.resourcePayloadCount).toBe(1);
+    expect(consumed1!.discoveryPayloadCount).toBe(1);
+  });
+
+  it("reads the consumed and created sides from their own event arrays", async () => {
+    const indexer = await run();
+    const resources = await indexer.Resource.getAll();
+    const tags = await indexer.Tag.getAll();
+
+    expect(resources).toHaveLength(4);
+
+    for (const [tagHash, isConsumed, logicRef] of [
+      [N0, true, VK_N0],
+      [C0, false, VK_C0],
+      [N1, true, VK_N1],
+      [C1, false, VK_C1],
+    ] as const) {
+      const resource = resources.find((r) => r.tagHash === tagHash);
+      expect(resource, `resource ${tagHash}`).toBeDefined();
+      expect(resource!.isConsumed).toBe(isConsumed);
+      expect(resource!.logicRef).toBe(logicRef);
+
+      const tag = tags.find((t) => t.tagHash === tagHash);
+      expect(tag, `tag ${tagHash}`).toBeDefined();
+      expect(tag!.isConsumed).toBe(isConsumed);
+      expect(tag!.logicRef).toBe(logicRef);
+    }
+  });
+
+  it("indexes a consumed tag before a created one within an action", async () => {
+    const indexer = await run();
+    const tags = await indexer.Tag.getAll();
+
+    // The canonical tag order is the action tree leaf order: nullifiers, then commitments.
+    expect(tags.find((t) => t.tagHash === N0)!.index).toBe(0);
+    expect(tags.find((t) => t.tagHash === C0)!.index).toBe(1);
+    expect(tags.find((t) => t.tagHash === N1)!.index).toBe(0);
+    expect(tags.find((t) => t.tagHash === C1)!.index).toBe(1);
+  });
+
+  it("relinks actions and tags to the Transaction once TransactionExecuted arrives", async () => {
+    const indexer = await run();
+    const txId = `${evmTxId}_15`;
+
+    const actions = await indexer.Action.getAll();
+    for (const a of actions) {
+      expect(a.transaction_id, `action ${a.id}`).toBe(txId);
+    }
+
+    const tags = await indexer.Tag.getAll();
+    for (const t of tags) {
+      expect(t.transaction_id, `tag ${t.id}`).toBe(txId);
+    }
+
+    const transactions = await indexer.Transaction.getAll();
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].transactionId).toBe(b32("transaction-0"));
   });
 });
