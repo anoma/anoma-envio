@@ -5,7 +5,9 @@ ENV PATH=$PNPM_HOME:$PATH
 
 WORKDIR /app
 
-RUN corepack enable && corepack install --global pnpm@9.15.9
+# corepack ships with the node images only through 24; install pnpm directly
+# so the image builds on any base tag.
+RUN npm install --global pnpm@9.15.9
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
