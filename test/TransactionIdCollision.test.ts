@@ -18,8 +18,8 @@ import { createTestIndexer } from "envio";
 describe("Transaction ID Collision", () => {
   const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
-  const CONTRACT: `0x${string}` = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const BLOCK = 100;
+  const CONTRACT: `0x${string}` = "0xED41cB03feaFB2159182b385873BFa858C577e96";
+  const BLOCK = 45_200_000;
   const TIMESTAMP = 1700000000;
 
   // First AP transaction

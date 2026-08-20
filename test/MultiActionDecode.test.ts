@@ -18,10 +18,10 @@ describe("Multi-action decode", () => {
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   // Must be an address indexed for this chain in config.yaml. Envio filters events
   // from any other address before the handler runs.
-  const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+  const CONTRACT = "0xED41cB03feaFB2159182b385873BFa858C577e96";
   // At or above the chain start_block in config.yaml; Envio filters anything below
   // it before the handler runs, and a simulate item that reaches no handler errors.
-  const BLOCK = 425_772_700;
+  const BLOCK = 45_200_000;
   const TIMESTAMP = 1700000000;
 
   const N0 = b32("nullifier-0");

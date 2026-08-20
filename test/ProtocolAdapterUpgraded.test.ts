@@ -14,6 +14,9 @@ describe("ProtocolAdapterUpgraded", () => {
   const CHAIN = 84532;
   const OTHER_CHAIN = 11155111;
   const CONTRACT: `0x${string}` = "0xED41cB03feaFB2159182b385873BFa858C577e96";
+  const OTHER_CONTRACT: `0x${string}` = "0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE";
+  const BLOCK = 45_200_000;
+  const OTHER_BLOCK = 11_500_000;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
   const IMPL_1: `0x${string}` = "0x1111111111111111111111111111111111111111";
   const IMPL_2: `0x${string}` = "0x2222222222222222222222222222222222222222";
@@ -30,7 +33,7 @@ describe("ProtocolAdapterUpgraded", () => {
               event: "Upgraded",
               params: { implementation: IMPL_1 },
               srcAddress: CONTRACT,
-              block: { number: 100, timestamp: 1700000000 },
+              block: { number: BLOCK, timestamp: 1700000000 },
               transaction: { hash: TX_HASH },
               logIndex: 3,
             },
@@ -39,7 +42,7 @@ describe("ProtocolAdapterUpgraded", () => {
               event: "Upgraded",
               params: { implementation: IMPL_2 },
               srcAddress: CONTRACT,
-              block: { number: 200, timestamp: 1700000600 },
+              block: { number: BLOCK + 100, timestamp: 1700000600 },
               transaction: { hash: TX_HASH },
               logIndex: 7,
             },
@@ -53,10 +56,10 @@ describe("ProtocolAdapterUpgraded", () => {
 
     const sorted = [...all].sort((a, b) => Number(a.blockNumber - b.blockNumber));
     expect(sorted[0].implementation).toBe(IMPL_1);
-    expect(sorted[0].blockNumber).toBe(100n);
+    expect(sorted[0].blockNumber).toBe(BigInt(BLOCK));
     expect(sorted[0].chainId).toBe(BigInt(CHAIN));
     expect(sorted[1].implementation).toBe(IMPL_2);
-    expect(sorted[1].blockNumber).toBe(200n);
+    expect(sorted[1].blockNumber).toBe(BigInt(BLOCK + 100));
   });
 
   it("should not collide across chains upgrading in the same tx and log position", async () => {
@@ -67,7 +70,7 @@ describe("ProtocolAdapterUpgraded", () => {
       event: "Upgraded" as const,
       params: { implementation: IMPL_1 },
       srcAddress: CONTRACT,
-      block: { number: 100, timestamp: 1700000000 },
+      block: { number: BLOCK, timestamp: 1700000000 },
       transaction: { hash: TX_HASH },
       logIndex: 3,
     };
@@ -75,7 +78,15 @@ describe("ProtocolAdapterUpgraded", () => {
     await indexer.process({
       chains: {
         [CHAIN]: { simulate: [upgraded] },
-        [OTHER_CHAIN]: { simulate: [upgraded] },
+        [OTHER_CHAIN]: {
+          simulate: [
+            {
+              ...upgraded,
+              srcAddress: OTHER_CONTRACT,
+              block: { number: OTHER_BLOCK, timestamp: 1700000000 },
+            },
+          ],
+        },
       },
     });
 

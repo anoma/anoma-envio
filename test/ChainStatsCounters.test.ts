@@ -14,6 +14,10 @@ const STATS_ID = "global";
 const CHAIN_A = 84532;
 const CHAIN_B = 11155111;
 
+// Envio only routes a simulate item whose block is at or above that chain's start_block.
+const BLOCK_A = 45_200_000;
+const BLOCK_B = 11_500_000;
+
 // 2026-05-19 00:00 UTC — picked so all events land in the same UTC day.
 const TIMESTAMP = 1779148800;
 const DATE_KEY = "2026-05-19";
@@ -33,7 +37,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -59,7 +63,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -87,7 +91,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -99,7 +103,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "bb".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 200, timestamp: TIMESTAMP },
+                block: { number: BLOCK_B + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 0,
               },
@@ -107,7 +111,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "cc".repeat(32), index: 1n, blob: "0x00" },
-                block: { number: 201, timestamp: TIMESTAMP },
+                block: { number: BLOCK_B + 101, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 1,
               },
@@ -136,7 +140,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -179,7 +183,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
             simulate: [
               {
                 ...actionExecuted(SHARED_LOGIC, SHARED_LOGIC),
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -190,7 +194,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
             simulate: [
               {
                 ...actionExecuted(SHARED_LOGIC, UNIQUE_LOGIC_B),
-                block: { number: 200, timestamp: TIMESTAMP },
+                block: { number: BLOCK_B + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -220,7 +224,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
             simulate: [
               {
                 ...actionExecuted(SHARED_LOGIC, SHARED_LOGIC),
-                block: { number: 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },

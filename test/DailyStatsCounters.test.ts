@@ -13,7 +13,7 @@ import { createTestIndexer } from "envio";
 // Simulated blocks must sit at or above the chain's start_block in config.yaml.
 // Envio filters anything below it before the handler runs, and a simulate item
 // that reaches no handler is an error. Offsets preserve the original ordering.
-const BLOCK = 425_772_700;
+const BLOCK = 45_200_000;
 
 // Default mock-event block.timestamp is 0, which maps to "1970-01-01"
 const DEFAULT_DAY_KEY = "1970-01-01";

@@ -13,8 +13,8 @@ import { b32, blob, consumed, created, action, encodeExecute } from "./fixtures/
 describe("Transaction-wide canonical tag order", () => {
   const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
-  const CONTRACT: `0x${string}` = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const BLOCK = 100;
+  const CONTRACT: `0x${string}` = "0xED41cB03feaFB2159182b385873BFa858C577e96";
+  const BLOCK = 45_200_000;
   const TIMESTAMP = 1700000000;
 
   // Two actions, each 1 consumed + 1 created, mirroring a real base-sepolia transaction.
