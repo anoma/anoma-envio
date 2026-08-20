@@ -35,7 +35,16 @@ updates:
       include: scope
     groups:
       # One PR for the lint/test/type toolchain rather than one per package.
+      #
+      # Minor and patch only. A grouped major is unlandable: the first attempt
+      # carried typescript 5 -> 7 and eslint 8 -> 10 together, and typescript 7
+      # needs a tsconfig "types" field while eslint 10 needs flat config, so the
+      # PR could not go green without two migrations buried in a dependency bump.
+      # Majors now arrive as their own PR, which is where that work belongs.
       dev-tooling:
+        update-types:
+          - minor
+          - patch
         patterns:
           - "eslint*"
           - "@typescript-eslint/*"
