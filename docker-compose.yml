@@ -16,7 +16,9 @@ services:
       - 5432:5432
     volumes:
       # remove this volume if you want the database to be recreated each time
-      - postgres:/var/lib/postgresql/data
+      # postgres 18 stores data in a major-version subdirectory, so the volume
+      # mounts one level up; mounting .../data makes the container refuse to start
+      - postgres:/var/lib/postgresql
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
