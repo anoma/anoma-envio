@@ -62,6 +62,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # .claude/skills/ is extracted from the pinned envio CLI, so bumping envio
+      # without re-running this leaves the skills describing the old API.
+      # Extraction is byte-deterministic, so any diff here is real drift.
+      - name: Skills match the pinned CLI
+        run: |
+          pnpm envio skills update
+          git add -fAN .claude/skills/
+          git diff --exit-code .claude/skills/
+
       - name: Resolve config env vars and run Envio codegen
         run: |
           perl -pe 's/\$\{(\w+):-([^}]*)\}/defined $ENV{$1} ? $ENV{$1} : $2/ge' config.yaml > config.resolved.yaml && mv config.resolved.yaml config.yaml
@@ -138,9 +147,14 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Skipped for Dependabot, which gets no repository secrets, so this job would
+  # fail on an empty ALCHEMY_API_KEY before running anything. github.actor is
+  # whoever triggered the run, so pushing a commit to a Dependabot branch by hand
+  # brings the full matrix back.
   validation:
     name: Validate (${{ matrix.name }})
     needs: [setup]
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
@@ -182,9 +196,13 @@ jobs:
           fi
           pnpm exec vitest run test/ci/config-validation.test.ts --testNamePattern '\(chain ${{ matrix.chain_id }}\)'
 
+  # Skipped for Dependabot for the same reason as validation above. A bot bump of
+  # viem or envio does want this, so finish those by hand: one human commit on the
+  # branch flips github.actor and the matrix runs.
   integration:
     name: Integration (${{ matrix.name }})
     needs: [setup]
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}

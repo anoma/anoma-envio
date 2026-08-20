@@ -11,6 +11,11 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
+// Simulated blocks must sit at or above the chain's start_block in config.yaml.
+// Envio filters anything below it before the handler runs, and a simulate item
+// that reaches no handler is an error. Offsets preserve the original ordering.
+const BLOCK = 425_772_700;
+
 const STATS_ID = "global";
 
 // Default TX hash used in tests — must be a 32-byte hex string
@@ -30,7 +35,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 0,
               },
@@ -53,7 +58,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 0,
               },
@@ -61,7 +66,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "bb".repeat(32), index: 1n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 1,
               },
@@ -86,7 +91,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "DiscoveryPayload",
                 params: { tag: "0x" + "cc".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 0,
               },
             ],
@@ -110,7 +115,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ExternalPayload",
                 params: { tag: "0x" + "dd".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 0,
               },
             ],
@@ -134,7 +139,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ApplicationPayload",
                 params: { tag: "0x" + "ee".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 0,
               },
             ],
@@ -162,7 +167,7 @@ describe("Stats Counters", () => {
                   input: "0xdeadbeef",
                   output: "0xcafebabe",
                 },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 0,
               },
@@ -187,7 +192,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "01".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 0,
               },
@@ -195,21 +200,21 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "DiscoveryPayload",
                 params: { tag: "0x" + "02".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 1,
               },
               {
                 contract: "ProtocolAdapter",
                 event: "ExternalPayload",
                 params: { tag: "0x" + "03".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 2,
               },
               {
                 contract: "ProtocolAdapter",
                 event: "ApplicationPayload",
                 params: { tag: "0x" + "04".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 logIndex: 3,
               },
               {
@@ -220,7 +225,7 @@ describe("Stats Counters", () => {
                   input: "0xdeadbeef",
                   output: "0xcafebabe",
                 },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 4,
               },
@@ -257,7 +262,7 @@ describe("Stats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "CommitmentTreeRootAdded",
                 params: { root: "0x" + "ab".repeat(32) },
-                block: { number: 100, timestamp: 0 },
+                block: { number: BLOCK, timestamp: 0 },
                 transaction: { hash: TX_HASH },
                 logIndex: 0,
               },

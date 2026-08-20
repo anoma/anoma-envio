@@ -1,0 +1,69 @@
+version: 2
+
+updates:
+  # The workflow actions target a Node runtime the runner already warns is
+  # deprecated, and nothing tracks that today. Grouped so a bump is one PR.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - ci
+      - dependencies
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # pnpm is covered by the npm ecosystem; Dependabot has no pnpm value.
+  #
+  # An envio bump will arrive red: the pinned CLI is what .claude/skills/ is
+  # extracted from, and Dependabot has no post-update hook, so the skills drift
+  # check fails until someone runs `pnpm envio skills update` on the branch.
+  # That is the check working. Finish the bump by hand, or close the PR.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # One PR for the lint/test/type toolchain rather than one per package.
+      dev-tooling:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+          - "prettier*"
+          - "vitest"
+          - "typescript"
+          - "@types/*"
+
+  # The runtime image the published container is built from.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+
+  # Postgres and Hasura are pinned in docker-compose.yml and drive the local
+  # stack and the CI integration job. Nothing else watches them.
+  - package-ecosystem: docker-compose
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+    ignore:
+      # Our own published image, tagged from a variable. A bump here is noise.
+      - dependency-name: ghcr.io/anoma/anoma-envio

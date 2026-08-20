@@ -175,7 +175,9 @@ pnpm typecheck       # TypeScript type checking
 3. Bump the version in `package.json`.
 4. Commit the version bump, tag the commit (`git tag vx.y.z`), and push both (`git push origin main --tags`).
 5. CI builds and publishes a new Docker image to `ghcr.io/anoma/anoma-envio`.
-6. Coordinate deployment with the infrastructure team.
+6. Coordinate deployment with the infrastructure team. See [DEPLOYMENTS.md](DEPLOYMENTS.md)
+   for the Envio-hosted projects, which branch each one watches, and how to
+   trigger or clean up a deployment.
 
 Docker images are tagged by branch (`envio-branch-main`), by PR (`envio-pr-<number>`), and by git tag. Production deployments use the `main` branch tag or a specific version tag.
 
