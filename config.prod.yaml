@@ -19,7 +19,6 @@ field_selection:
   transaction_fields:
     - "hash"
     - "from"
-    - "to"
     - "value"
     - "input"
 # Production indexing scope: Mainnet + Arbitrum + BSC + Monad + Stable + MegaETH + Aurora.
