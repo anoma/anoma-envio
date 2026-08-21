@@ -19,7 +19,7 @@ const BLOCK = 425_772_700;
 const STATS_ID = "global";
 
 // Default TX hash used in tests — must be a 32-byte hex string
-const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
+const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
 // Default forwarder address (20-byte hex)
 const FORWARDER = "0xffffffffffffffffffffffffffffffffffffffff";
 

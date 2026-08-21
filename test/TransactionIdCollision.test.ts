@@ -14,7 +14,7 @@ import { createTestIndexer } from "envio";
 
 describe("Transaction ID Collision", () => {
   const CHAIN = 1;
-  const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
+  const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
   // Must be an address indexed for this chain in config.yaml. Envio filters events
   // from any other address before the handler runs.
   const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";

@@ -23,7 +23,7 @@ describe("CommitmentTreeRoot Ordering", () => {
 
       const BLOCK = BASE_BLOCK;
       const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
-      const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
+      const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
 
       await indexer.process({
         chains: {
