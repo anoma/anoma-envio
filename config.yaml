@@ -19,7 +19,6 @@ field_selection:
   transaction_fields:
     - "hash"
     - "from"
-    - "to"
     - "value"
     - "input"
 # Addresses from: https://github.com/anoma/pa-evm/blob/contracts/v1.1.0/bindings/src/addresses.rs
