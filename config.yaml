@@ -24,24 +24,19 @@ field_selection:
     - "to"
     - "value"
     - "input"
-# The events above are the pa-evm v2 shapes, taken from contracts/v2.0.0-alpha.5.
-# Addresses are the ERC-1967 proxies, not the implementations: the proxy holds the state and
-# emits the events. start_block is the proxy deployment block.
-# v2 addresses: https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-alpha.5/crates/bindings/deployments.json
+
+# The ProtocolAdapter ERC1967 proxy addresses are taken from here:
+# https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-rc.0/crates/bindings/deployments.json
 chains:
   - id: 84532 # Base Sepolia
     start_block: 45161853
     contracts:
       - name: ProtocolAdapter
         address:
-          # The deployment that has actually executed transactions to date.
-          - "0xED41cB03feaFB2159182b385873BFa858C577e96"
-          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
-          - "0x6BbDF59F869957dDC96e8a4d79077613727e6537"
+          - "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A"
   - id: 11155111 # Sepolia
     start_block: 11480805
     contracts:
       - name: ProtocolAdapter
         address:
-          # The canonical contracts/v2.0.0-alpha.5 deployment; no executed transactions yet.
-          - "0xb7f6DE4Edc94b871B5dB57aa40BbBabC6E9F56fE"
+          - "0xe23d3b3FC0944cB0c1184C6e04b9d26Ed50CeC51"
