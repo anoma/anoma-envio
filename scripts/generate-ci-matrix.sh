@@ -94,6 +94,16 @@ if [ ${#ENTRIES[@]} -eq 0 ]; then
   exit 1
 fi
 
+# The loop above only sees a chain if its "# <name>" comment is present, so a
+# dropped or reworded comment silently removes that chain from CI. Count the
+# id: lines independently and refuse to emit a matrix that is missing any.
+DECLARED=$(grep -cE '^[[:space:]]*-[[:space:]]*id:[[:space:]]*[0-9]+' "$CONFIG")
+if [ "${#ENTRIES[@]}" -ne "$DECLARED" ]; then
+  echo "Error: $CONFIG declares $DECLARED chains but only ${#ENTRIES[@]} entered the matrix." >&2
+  echo "  Every chain needs an inline name comment: '- id: <number> # <Name>'" >&2
+  exit 1
+fi
+
 # Join entries with commas
 IFS=','
 echo "{\"include\":[${ENTRIES[*]}]}"
