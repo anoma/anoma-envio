@@ -18,7 +18,7 @@ const BLOCK = 425_772_700;
 // Default mock-event block.timestamp is 0, which maps to "1970-01-01"
 const DEFAULT_DAY_KEY = "1970-01-01";
 
-const TX_HASH = "0xabababababababababababababababababababababababababababababababababab";
+const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
 const FORWARDER = "0xffffffffffffffffffffffffffffffffffffffff";
 
 describe("DailyStats Counters", () => {
