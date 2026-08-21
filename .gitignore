@@ -5,9 +5,6 @@ node_modules/
 build/
 dist/
 
-# Generated files (created by envio codegen)
-generated/
-
 # Environment
 .env
 .env.local
