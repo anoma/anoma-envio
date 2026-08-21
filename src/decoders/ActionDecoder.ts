@@ -359,7 +359,11 @@ export function getActionFromCalldata(input: string, actionIndex: number): Actio
   }
 
   const { transaction } = result;
-  if (actionIndex < 0 || actionIndex >= transaction.actions.length) {
+  if (
+    !Number.isInteger(actionIndex) ||
+    actionIndex < 0 ||
+    actionIndex >= transaction.actions.length
+  ) {
     return null;
   }
 

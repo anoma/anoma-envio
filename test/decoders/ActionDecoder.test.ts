@@ -71,6 +71,14 @@ describe("ActionDecoder", () => {
       // Even with valid calldata, negative index should fail
       expect(getActionFromCalldata("0xed3cf91f", -1)).toBeNull();
     });
+
+    it("should return null for a non-integer action index", () => {
+      // A fractional index passes a bare `< 0 || >= length` guard, and the
+      // subsequent array access yields undefined rather than null.
+      expect(getActionFromCalldata(CALLDATA, 0.5)).toBeNull();
+      expect(getActionFromCalldata(CALLDATA, NaN)).toBeNull();
+      expect(getActionFromCalldata(CALLDATA, Infinity)).toBeNull();
+    });
   });
 
   // Real calldata from Base tx 0xdc958fa7... (pa-evm#474)
