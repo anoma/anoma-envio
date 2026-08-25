@@ -238,6 +238,19 @@ type KindTableCommitment @index(fields: ["chainId", "blockNumber"]) {
   chainId: BigInt! @index
 }
 
+# ProtocolAdapterUpgraded - ERC-1967 implementation change behind a v2 proxy.
+# The adapter address is fixed but the implementation behind it is not, and the implementation is
+# what decides the event shapes emitted. One row per Upgraded event; the latest row at or before a
+# block identifies the implementation in force there.
+type ProtocolAdapterUpgraded {
+  id: ID!
+  implementation: String!
+  blockNumber: BigInt!
+  txHash: String!
+  timestamp: BigInt!
+  chainId: BigInt!
+}
+
 # ============================================
 # Distinct Logic Tracking
 # ============================================
