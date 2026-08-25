@@ -64,14 +64,6 @@ chains:
       - name: ProtocolAdapter
         address:
           - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
-  - id: 1313161554 # Aurora
-    start_block: 203917905
-    # V3 auto-resolve: explicit hypersync_config removed; V3 + ENVIO_API_TOKEN resolves this endpoint.
-    # If V3 cannot auto-resolve, re-add: hypersync: { url: "https://1313161554.hypersync.xyz" }
-    contracts:
-      - name: ProtocolAdapter
-        address:
-          - "0x2D2Fa19aFdbb20DC73737ca5f075cfAE00Cd90C2"
   - id: 8453 # Base
     start_block: 41364872
     contracts:
