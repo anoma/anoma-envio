@@ -26,15 +26,6 @@ export function isConsumedIndex(index: number): boolean {
 }
 
 /**
- * ID format suffixes used in entity identifiers.
- */
-export const ID_SUFFIXES = {
-  TAG: "",
-  COMPLIANCE: "_compliance_",
-  LOGIC: "_logic_",
-} as const;
-
-/**
  * Number of seconds in a UTC day.
  */
 export const SECONDS_PER_DAY = 86400;
