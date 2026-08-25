@@ -3,4 +3,3 @@
  */
 
 export { BoundedCache } from "./BoundedCache";
-export * from "./abi";
