@@ -23,7 +23,7 @@ const CHAIN_B = 42161;
 const TIMESTAMP = 1779148800;
 const DATE_KEY = "2026-05-19";
 
-const TX_HASH_A = "0xabababababababababababababababababababababababababababababababababab";
+const TX_HASH_A = "0xabababababababababababababababababababababababababababababababab";
 const TX_HASH_B = "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
 
 describe("ChainStats / ChainDailyStats Counters", () => {
