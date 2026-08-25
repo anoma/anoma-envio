@@ -458,7 +458,9 @@ indexer.onEvent(
         context.Action.set({ ...action, transaction_id: txId });
       }
     }
-    pendingActionIds.delete(evmTxId);
+    if (!context.isPreload) {
+      pendingActionIds.delete(evmTxId);
+    }
 
     // Batch-fetch all existing tags and logicRefs in parallel (eliminates N+1 reads)
     const tagIds = event.params.tags.map((tagHash) => createTagId(event.chainId, tagHash));
@@ -550,7 +552,9 @@ indexer.onEvent(
     });
 
     // Clear the cache after processing is complete
-    clearDecodedCache(txHash);
+    if (!context.isPreload) {
+      clearDecodedCache(txHash);
+    }
   }
 );
 
@@ -580,8 +584,11 @@ indexer.onEvent(
     let actionIndex = seenActions.get(actionId);
     if (actionIndex === undefined) {
       actionIndex = seenActions.size;
-      seenActions.set(actionId, actionIndex);
-      pendingActionIds.set(evmTxId, seenActions);
+      // Preload is parallel: two ActionExecuted could read `size` and claim the same index.
+      if (!context.isPreload) {
+        seenActions.set(actionId, actionIndex);
+        pendingActionIds.set(evmTxId, seenActions);
+      }
     }
 
     // Select this action's decoded data by position. (The previous tag-count match
