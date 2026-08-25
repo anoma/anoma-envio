@@ -93,7 +93,6 @@ services:
       LOG_LEVEL: warn
       LOG_STRATEGY: console-pretty
       ENVIO_TUI: false
-      CONFIG_FILE: config.yaml
 
       # database configuration
       ENVIO_PG_PASSWORD: postgres
