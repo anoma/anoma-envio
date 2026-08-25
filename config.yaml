@@ -10,6 +10,7 @@ contracts:
       - event: DiscoveryPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ExternalPayload(bytes32 indexed tag, uint256 index, bytes blob)
       - event: ForwarderCallExecuted(address indexed untrustedForwarder, bytes input, bytes output)
+      - event: KindTableCommitmentUpdated(bytes32 indexed kindTableCommitment)
       - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
       - event: Paused(address account)
       - event: ResourcePayload(bytes32 indexed tag, uint256 index, bytes blob)

@@ -225,6 +225,19 @@ type ProtocolAdapterPaused {
   chainId: BigInt!
 }
 
+# KindTableCommitment - The commitment of the kind table transactions must be proven against.
+# One row per KindTableCommitmentUpdated event; the initialize() call emits the empty-table
+# commitment, so the latest row per chain is the table currently in force.
+type KindTableCommitment @index(fields: ["chainId", "blockNumber"]) {
+  id: ID!
+  kindTableCommitment: String! @index
+  blockNumber: BigInt! @index
+  logIndex: Int! # EVM log index — tiebreaker for ordering within a block
+  txHash: String!
+  timestamp: BigInt! @index
+  chainId: BigInt! @index
+}
+
 # ============================================
 # Distinct Logic Tracking
 # ============================================
