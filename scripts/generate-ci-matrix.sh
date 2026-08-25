@@ -55,8 +55,10 @@ while IFS= read -r line; do
   if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*([0-9]+)[[:space:]]*#[[:space:]]*(.*) ]]; then
     CHAIN_ID="${BASH_REMATCH[1]}"
     RAW_NAME="${BASH_REMATCH[2]}"
-    # Display name: spaces -> hyphens (for GitHub Actions job names)
-    DISPLAY_NAME=$(echo "$RAW_NAME" | sed 's/ /-/g')
+    # Display name: spaces -> hyphens (for GitHub Actions job names), then
+    # JSON-escape it. Backslash must be escaped before the double quote,
+    # otherwise the backslash inserted for the quote is escaped again.
+    DISPLAY_NAME=$(echo "$RAW_NAME" | sed 's/ /-/g; s/\\/\\\\/g; s/"/\\"/g')
     # RPC env key: uppercase, non-alphanumeric -> underscore (matches test/chain-utils.ts)
     RPC_KEY=$(echo "$RAW_NAME" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g')
 
