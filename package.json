@@ -1,6 +1,6 @@
 {
   "name": "anoma-envio",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "module",
   "description": "Envio HyperIndex V3 indexer for Anoma Protocol Adapter events",
   "scripts": {
