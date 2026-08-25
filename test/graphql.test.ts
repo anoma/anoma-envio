@@ -75,16 +75,14 @@ describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
       const data = await query<{
         Transaction: Array<{
           id: string;
-          tagHashes: string[];
-          logicRefs: string[];
+          transactionId: string;
           evmTransaction: { txHash: string; blockNumber: number; chainId: number };
         }>;
       }>(`
         query {
           Transaction(limit: 5, order_by: {evmTransaction: {blockNumber: desc}}) {
             id
-            tagHashes
-            logicRefs
+            transactionId
             evmTransaction { txHash blockNumber chainId }
           }
         }
@@ -96,8 +94,7 @@ describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
         const tx = data.Transaction[0];
         expect(tx).toHaveProperty("evmTransaction");
         expect(tx.evmTransaction).toHaveProperty("txHash");
-        expect(Array.isArray(tx.tagHashes)).toBe(true);
-        expect(Array.isArray(tx.logicRefs)).toBe(true);
+        expect(typeof tx.transactionId).toBe("string");
         console.log(
           `\n  Latest tx: ${tx.evmTransaction.txHash} (block ${tx.evmTransaction.blockNumber})`
         );
@@ -231,7 +228,7 @@ describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
       const data = await query<{
         Transaction: Array<{
           evmTransaction: { txHash: string };
-          tagHashes: string[];
+          transactionId: string;
           tags: Array<{
             tagHash: string;
             isConsumed: boolean;
@@ -241,7 +238,7 @@ describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
         query {
           Transaction(limit: 1) {
             evmTransaction { txHash }
-            tagHashes
+            transactionId
             tags {
               tagHash
               isConsumed
@@ -257,7 +254,7 @@ describe.skipIf(!GRAPHQL_URL)("GraphQL Endpoint", () => {
         expect(Array.isArray(tx.tags)).toBe(true);
 
         console.log(`\n  Transaction ${tx.evmTransaction.txHash.slice(0, 20)}...`);
-        console.log(`    TagHashes: ${tx.tagHashes.length}`);
+        console.log(`    TransactionId: ${tx.transactionId}`);
         console.log(`    Tags: ${tx.tags.length}`);
 
         // Verify consumed/created pattern

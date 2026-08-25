@@ -16,8 +16,8 @@
 import { describe, it, expect } from "vitest";
 import { parseConfig, chainName, getRpcUrl, rpcCall, type NetworkConfig } from "./chain-utils.js";
 
-// TransactionExecuted(bytes32[] tags, bytes32[] logicRefs)
-const TX_EXECUTED_TOPIC = "0x10dd528db2c49add6545679b976df90d24c035d6a75b17f41b700e8c18ca5364";
+// TransactionExecuted(bytes32 indexed transactionId)
+const TX_EXECUTED_TOPIC = "0x862d83c6c5af275e697bfd4e27c8323c196b44bdd011dd9aaab6db0ec9943dce";
 
 const GRAPHQL_URL: string | undefined = process.env.ENVIO_GRAPHQL_URL;
 

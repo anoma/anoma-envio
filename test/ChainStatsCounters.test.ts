@@ -10,14 +10,13 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
-// Simulated blocks must sit at or above the chain's start_block in config.yaml.
-// Envio filters anything below it before the handler runs, and a simulate item
-// that reaches no handler is an error. Offsets preserve the original ordering.
-const BLOCK = 425_772_700;
-
 const STATS_ID = "global";
-const CHAIN_A = 1;
-const CHAIN_B = 42161;
+const CHAIN_A = 84532;
+const CHAIN_B = 11155111;
+
+// Envio only routes a simulate item whose block is at or above that chain's start_block.
+const BLOCK_A = 45_511_361;
+const BLOCK_B = 11_500_000;
 
 // 2026-05-19 00:00 UTC — picked so all events land in the same UTC day.
 const TIMESTAMP = 1779148800;
@@ -38,7 +37,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -64,7 +63,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -92,7 +91,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -104,7 +103,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "bb".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: BLOCK + 100, timestamp: TIMESTAMP },
+                block: { number: BLOCK_B + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 0,
               },
@@ -112,7 +111,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "cc".repeat(32), index: 1n, blob: "0x00" },
-                block: { number: BLOCK + 101, timestamp: TIMESTAMP },
+                block: { number: BLOCK_B + 101, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B },
                 logIndex: 1,
               },
@@ -141,7 +140,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
                 contract: "ProtocolAdapter",
                 event: "ResourcePayload",
                 params: { tag: "0x" + "aa".repeat(32), index: 0n, blob: "0x00" },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A },
                 logIndex: 0,
               },
@@ -156,35 +155,46 @@ describe("ChainStats / ChainDailyStats Counters", () => {
   });
 
   describe("ChainLogicRef distinct counting", () => {
-    const TAGS = ["0x" + "11".repeat(32), "0x" + "12".repeat(32)];
+    const NULLIFIER = "0x" + "11".repeat(32);
+    const COMMITMENT = "0x" + "12".repeat(32);
+    const ACTION_ROOT = "0x" + "a0".repeat(32);
     const SHARED_LOGIC = "0x" + "ff".repeat(32);
     const UNIQUE_LOGIC_B = "0x" + "ee".repeat(32);
 
-    it("should count a verifyingKey once per chain even when shared across chains", async () => {
+    /** One action consuming and creating one resource, under the given logic references. */
+    const actionExecuted = (consumedLogic: string, createdLogic: string) => ({
+      contract: "ProtocolAdapter" as const,
+      event: "ActionExecuted" as const,
+      params: {
+        actionTreeRoot: ACTION_ROOT,
+        nullifiers: [NULLIFIER],
+        consumedLogicRefs: [consumedLogic],
+        commitments: [COMMITMENT],
+        createdLogicRefs: [createdLogic],
+      },
+    });
+
+    it("should count a logic reference once per chain even when shared across chains", async () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          // Chain A: one tx with logic ref SHARED_LOGIC used twice (unique-set size 1).
+          // Chain A: one action with logic ref SHARED_LOGIC used twice (unique-set size 1).
           [CHAIN_A]: {
             simulate: [
               {
-                contract: "ProtocolAdapter",
-                event: "TransactionExecuted",
-                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                ...actionExecuted(SHARED_LOGIC, SHARED_LOGIC),
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },
             ],
           },
-          // Chain B: one tx with SHARED_LOGIC (same key, different chain) + UNIQUE_LOGIC_B.
+          // Chain B: one action with SHARED_LOGIC (same ref, different chain) + UNIQUE_LOGIC_B.
           [CHAIN_B]: {
             simulate: [
               {
-                contract: "ProtocolAdapter",
-                event: "TransactionExecuted",
-                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, UNIQUE_LOGIC_B] },
-                block: { number: BLOCK + 100, timestamp: TIMESTAMP },
+                ...actionExecuted(SHARED_LOGIC, UNIQUE_LOGIC_B),
+                block: { number: BLOCK_B + 100, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_B, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -206,17 +216,15 @@ describe("ChainStats / ChainDailyStats Counters", () => {
       expect(statsB!.distinctLogics).toBe(2n);
     });
 
-    it("should write ChainLogicRef rows keyed by '<chainId>-<verifyingKey>'", async () => {
+    it("should write ChainLogicRef rows keyed by '<chainId>-<logicRef>'", async () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
           [CHAIN_A]: {
             simulate: [
               {
-                contract: "ProtocolAdapter",
-                event: "TransactionExecuted",
-                params: { tags: TAGS, logicRefs: [SHARED_LOGIC, SHARED_LOGIC] },
-                block: { number: BLOCK, timestamp: TIMESTAMP },
+                ...actionExecuted(SHARED_LOGIC, SHARED_LOGIC),
+                block: { number: BLOCK_A, timestamp: TIMESTAMP },
                 transaction: { hash: TX_HASH_A, input: "0x", value: 0n },
                 logIndex: 0,
               },
@@ -228,7 +236,7 @@ describe("ChainStats / ChainDailyStats Counters", () => {
       const ref = await indexer.ChainLogicRef.get(`${CHAIN_A}-${SHARED_LOGIC}`);
       expect(ref, "ChainLogicRef row missing").toBeDefined();
       expect(ref!.chainId).toBe(BigInt(CHAIN_A));
-      expect(ref!.verifyingKey).toBe(SHARED_LOGIC);
+      expect(ref!.logicRef).toBe(SHARED_LOGIC);
       expect(ref!.firstSeenTxHash).toBe(TX_HASH_A);
     });
   });

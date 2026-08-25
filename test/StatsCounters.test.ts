@@ -14,7 +14,7 @@ import { createTestIndexer } from "envio";
 // Simulated blocks must sit at or above the chain's start_block in config.yaml.
 // Envio filters anything below it before the handler runs, and a simulate item
 // that reaches no handler is an error. Offsets preserve the original ordering.
-const BLOCK = 425_772_700;
+const BLOCK = 45_511_361;
 
 const STATS_ID = "global";
 
@@ -29,7 +29,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -52,7 +52,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -85,7 +85,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -109,7 +109,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -133,7 +133,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -157,7 +157,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -186,7 +186,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -245,8 +245,7 @@ describe("Stats Counters", () => {
       expect(stats.transactions).toBe(0n);
       expect(stats.tags).toBe(0n);
       expect(stats.actions).toBe(0n);
-      expect(stats.complianceUnits).toBe(0n);
-      expect(stats.logicInputs).toBe(0n);
+      expect(stats.resources).toBe(0n);
       expect(stats.distinctLogics).toBe(0n);
     });
   });
@@ -256,7 +255,7 @@ describe("Stats Counters", () => {
       const indexer = createTestIndexer();
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
