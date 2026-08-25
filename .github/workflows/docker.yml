@@ -4,10 +4,14 @@ on:
   pull_request:
     branches:
       - main
+      - pa-v2
+      - pa-v2-next
   push:
     branches:
       - main
       - next
+      - pa-v2
+      - pa-v2-next
     tags:
       - '*'
   workflow_dispatch:
