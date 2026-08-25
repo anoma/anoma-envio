@@ -14,7 +14,7 @@ import { createTestIndexer } from "envio";
 // Simulated blocks must sit at or above the chain's start_block in config.yaml.
 // Envio filters anything below it before the handler runs, and a simulate item
 // that reaches no handler is an error. Offsets preserve the original ordering.
-const BASE_BLOCK = 425_772_700;
+const BASE_BLOCK = 45_511_361;
 
 describe("CommitmentTreeRoot Ordering", () => {
   describe("multiple roots in the same block", () => {
@@ -22,12 +22,12 @@ describe("CommitmentTreeRoot Ordering", () => {
       const indexer = createTestIndexer();
 
       const BLOCK = BASE_BLOCK;
-      const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+      const CONTRACT = "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A";
       const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
 
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -72,13 +72,13 @@ describe("CommitmentTreeRoot Ordering", () => {
       const indexer = createTestIndexer();
 
       const BLOCK = BASE_BLOCK;
-      const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+      const CONTRACT = "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A";
       const TX_HASH = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
       // 5 roots across 2 blocks, inserted out of order
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",
@@ -155,12 +155,12 @@ describe("CommitmentTreeRoot Ordering", () => {
       const indexer = createTestIndexer();
 
       const BLOCK = BASE_BLOCK + 200;
-      const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
+      const CONTRACT = "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A";
 
       // Two separate EVM transactions in the same block
       await indexer.process({
         chains: {
-          1: {
+          84532: {
             simulate: [
               {
                 contract: "ProtocolAdapter",

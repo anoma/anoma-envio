@@ -1,11 +1,11 @@
 /**
  * Transaction type definitions following Anoma specification.
  *
- * A Transaction is the top-level structure containing actions and proofs.
- * The delta proof proves that the sum of all deltas in all compliance units is zero,
- * and the aggregation proof aggregates all compliance proofs into a single proof.
+ * A Transaction is the top-level structure containing actions and proofs. The delta proof proves
+ * that the sum of all action deltas is zero; the aggregation proof is the single recursive proof
+ * covering every compliance unit and resource logic in the transaction.
  *
- * From PA-EVM Types.sol:
+ * From PA-EVM interfaces/IProtocolAdapter.sol:
  * struct Transaction {
  *     Action[] actions;
  *     bytes deltaProof;
@@ -21,7 +21,10 @@ export interface Transaction {
   aggregationProof: `0x${string}`;
 }
 
+/**
+ * The transaction id is the Keccak-256 hash of the concatenated action tree roots — the message
+ * the delta proof signs, unique per transaction and known to the sender before submission.
+ */
 export interface TransactionExecutedEvent {
-  tags: `0x${string}`[];
-  logicRefs: `0x${string}`[];
+  transactionId: `0x${string}`;
 }

@@ -7,54 +7,88 @@
  *
  * The fix uses the format {chainId}_{txHash}_{logIndex} for Transaction IDs
  * to ensure uniqueness, while EVMTransaction retains {chainId}_{txHash}.
+ *
+ * Since v2 the tags arrive on ActionExecuted rather than TransactionExecuted, so the same
+ * question applies to tags: each must end up linked to the execute() call it belongs to.
  */
 
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
 describe("Transaction ID Collision", () => {
-  const CHAIN = 1;
+  const CHAIN = 84532;
   const TX_HASH = "0xabababababababababababababababababababababababababababababababab";
-  // Must be an address indexed for this chain in config.yaml. Envio filters events
-  // from any other address before the handler runs.
-  const CONTRACT = "0x0eA3B55b68A3f307c8FE3fe66E443247c95F0CfF";
-  // At or above the chain start_block in config.yaml; Envio filters anything below
-  // it before the handler runs, and a simulate item that reaches no handler errors.
-  const BLOCK = 425_772_700;
+  const CONTRACT: `0x${string}` = "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A";
+  const BLOCK = 45_511_361;
   const TIMESTAMP = 1700000000;
 
-  // Tags for first AP transaction
-  const tags1 = ["0x" + "11".repeat(32), "0x" + "12".repeat(32)];
-  const logicRefs1 = ["0x" + "a1".repeat(32), "0x" + "a2".repeat(32)];
+  // First AP transaction
+  const ACTION_ROOT_1 = "0x" + "a1".repeat(32);
+  const TRANSACTION_ID_1 = "0x" + "d1".repeat(32);
+  const NULLIFIER_1 = "0x" + "11".repeat(32);
+  const COMMITMENT_1 = "0x" + "12".repeat(32);
 
-  // Tags for second AP transaction (different tags, same EVM tx)
-  const tags2 = ["0x" + "21".repeat(32), "0x" + "22".repeat(32)];
-  const logicRefs2 = ["0x" + "b1".repeat(32), "0x" + "b2".repeat(32)];
+  // Second AP transaction (different tags, same EVM tx)
+  const ACTION_ROOT_2 = "0x" + "a2".repeat(32);
+  const TRANSACTION_ID_2 = "0x" + "d2".repeat(32);
+  const NULLIFIER_2 = "0x" + "21".repeat(32);
+  const COMMITMENT_2 = "0x" + "22".repeat(32);
 
-  async function processTwoTransactionExecuted() {
+  const CONSUMED_LOGIC_REF = "0x" + "b1".repeat(32);
+  const CREATED_LOGIC_REF = "0x" + "b2".repeat(32);
+
+  const transaction = { hash: TX_HASH, input: "0x", value: 0n };
+  const at = (logIndex: number) => ({
+    srcAddress: CONTRACT,
+    block: { number: BLOCK, timestamp: TIMESTAMP },
+    transaction,
+    logIndex,
+  });
+
+  const actionExecuted = (
+    actionTreeRoot: string,
+    nullifier: string,
+    commitment: string,
+    logIndex: number
+  ) => ({
+    contract: "ProtocolAdapter" as const,
+    event: "ActionExecuted" as const,
+    params: {
+      actionTreeRoot,
+      nullifiers: [nullifier],
+      consumedLogicRefs: [CONSUMED_LOGIC_REF],
+      commitments: [commitment],
+      createdLogicRefs: [CREATED_LOGIC_REF],
+    },
+    ...at(logIndex),
+  });
+
+  const transactionExecuted = (transactionId: string, logIndex: number) => ({
+    contract: "ProtocolAdapter" as const,
+    event: "TransactionExecuted" as const,
+    params: { transactionId },
+    ...at(logIndex),
+  });
+
+  /**
+   * Simulates a multicall EVM tx with two execute() calls:
+   *   ActionExecuted(action1) → TransactionExecuted(logIndex 10)
+   *   ActionExecuted(action2) → TransactionExecuted(logIndex 20)
+   *
+   * Both ActionExecuted events share TX_HASH so evmTxId is the same. The guard on
+   * transaction_id === evmTxId ensures each TransactionExecuted only claims its own
+   * still-unlinked actions and tags.
+   */
+  async function processTwoExecuteCalls() {
     const indexer = createTestIndexer();
     await indexer.process({
       chains: {
         [CHAIN]: {
           simulate: [
-            {
-              contract: "ProtocolAdapter",
-              event: "TransactionExecuted",
-              params: { tags: tags1, logicRefs: logicRefs1 },
-              srcAddress: CONTRACT,
-              block: { number: BLOCK, timestamp: TIMESTAMP },
-              transaction: { hash: TX_HASH, input: "0x", value: 0n },
-              logIndex: 10,
-            },
-            {
-              contract: "ProtocolAdapter",
-              event: "TransactionExecuted",
-              params: { tags: tags2, logicRefs: logicRefs2 },
-              srcAddress: CONTRACT,
-              block: { number: BLOCK, timestamp: TIMESTAMP },
-              transaction: { hash: TX_HASH, input: "0x", value: 0n },
-              logIndex: 20,
-            },
+            actionExecuted(ACTION_ROOT_1, NULLIFIER_1, COMMITMENT_1, 5),
+            transactionExecuted(TRANSACTION_ID_1, 10),
+            actionExecuted(ACTION_ROOT_2, NULLIFIER_2, COMMITMENT_2, 15),
+            transactionExecuted(TRANSACTION_ID_2, 20),
           ],
         },
       },
@@ -63,19 +97,19 @@ describe("Transaction ID Collision", () => {
   }
 
   it("should preserve both Transactions when two AP txs share an EVM tx", async () => {
-    const indexer = await processTwoTransactionExecuted();
+    const indexer = await processTwoExecuteCalls();
 
     const allTxs = await indexer.Transaction.getAll();
     expect(allTxs).toHaveLength(2);
 
     // Sort by logIndex for deterministic ordering
     const sorted = [...allTxs].sort((a, b) => a.logIndex - b.logIndex);
-    expect(sorted[0].tagHashes).toEqual(tags1);
-    expect(sorted[1].tagHashes).toEqual(tags2);
+    expect(sorted[0].transactionId).toBe(TRANSACTION_ID_1);
+    expect(sorted[1].transactionId).toBe(TRANSACTION_ID_2);
   });
 
   it("should share one EVMTransaction between both AP Transactions", async () => {
-    const indexer = await processTwoTransactionExecuted();
+    const indexer = await processTwoExecuteCalls();
 
     // Only one EVMTransaction (same EVM tx)
     const allEvmTxs = await indexer.EVMTransaction.getAll();
@@ -93,118 +127,68 @@ describe("Transaction ID Collision", () => {
   });
 
   it("should create separate tags for each AP transaction", async () => {
-    const indexer = await processTwoTransactionExecuted();
+    const indexer = await processTwoExecuteCalls();
 
     const allTags = await indexer.Tag.getAll();
     expect(allTags).toHaveLength(4); // 2 tags per transaction
 
     const tagHashes = allTags.map((t) => t.tagHash).sort();
-    const expectedHashes = [...tags1, ...tags2].sort();
+    const expectedHashes = [NULLIFIER_1, COMMITMENT_1, NULLIFIER_2, COMMITMENT_2].sort();
     expect(tagHashes).toEqual(expectedHashes);
   });
 
   it("should correctly count stats for both transactions", async () => {
-    const indexer = await processTwoTransactionExecuted();
+    const indexer = await processTwoExecuteCalls();
 
     const stats = await indexer.Stats.get("global");
     expect(stats).toBeDefined();
     expect(stats!.transactions).toBe(2n);
     expect(stats!.tags).toBe(4n);
+    expect(stats!.actions).toBe(2n);
+    expect(stats!.resources).toBe(4n);
   });
 
-  // ─── Action↔Transaction linkage via evmTxId (Task 1) ───────────────────────
+  it("should link each Action to its own TransactionExecuted (not the other)", async () => {
+    const indexer = await processTwoExecuteCalls();
 
-  describe("Action linkage via evmTxId (preload-safe, no pending Map)", () => {
-    const ACTION_ROOT_1 = "0x" + "a1".repeat(32);
-    const ACTION_ROOT_2 = "0x" + "a2".repeat(32);
+    const evmTxId = `${CHAIN}_${TX_HASH}`;
+    const txId1 = `${CHAIN}_${TX_HASH}_10`;
+    const txId2 = `${CHAIN}_${TX_HASH}_20`;
 
-    /**
-     * Simulates a multicall EVM tx with two execute() calls:
-     *   ActionExecuted(action1) → TransactionExecuted(logIndex 10)
-     *   ActionExecuted(action2) → TransactionExecuted(logIndex 20)
-     *
-     * Both ActionExecuted events share TX_HASH so evmTxId is the same.
-     * The guard on transaction_id === evmTxId ensures each TransactionExecuted
-     * only claims its own unlinked actions.
-     */
-    async function processTwoExecuteCallsWithActions() {
-      const indexer = createTestIndexer();
-      await indexer.process({
-        chains: {
-          [CHAIN]: {
-            simulate: [
-              // First execute(): ActionExecuted then TransactionExecuted
-              {
-                contract: "ProtocolAdapter",
-                event: "ActionExecuted",
-                params: { actionTreeRoot: ACTION_ROOT_1, actionTagCount: 0n },
-                srcAddress: CONTRACT,
-                block: { number: BLOCK, timestamp: TIMESTAMP },
-                transaction: { hash: TX_HASH, input: "0x", value: 0n },
-                logIndex: 5,
-              },
-              {
-                contract: "ProtocolAdapter",
-                event: "TransactionExecuted",
-                params: { tags: tags1, logicRefs: logicRefs1 },
-                srcAddress: CONTRACT,
-                block: { number: BLOCK, timestamp: TIMESTAMP },
-                transaction: { hash: TX_HASH, input: "0x", value: 0n },
-                logIndex: 10,
-              },
-              // Second execute(): ActionExecuted then TransactionExecuted
-              {
-                contract: "ProtocolAdapter",
-                event: "ActionExecuted",
-                params: { actionTreeRoot: ACTION_ROOT_2, actionTagCount: 0n },
-                srcAddress: CONTRACT,
-                block: { number: BLOCK, timestamp: TIMESTAMP },
-                transaction: { hash: TX_HASH, input: "0x", value: 0n },
-                logIndex: 15,
-              },
-              {
-                contract: "ProtocolAdapter",
-                event: "TransactionExecuted",
-                params: { tags: tags2, logicRefs: logicRefs2 },
-                srcAddress: CONTRACT,
-                block: { number: BLOCK, timestamp: TIMESTAMP },
-                transaction: { hash: TX_HASH, input: "0x", value: 0n },
-                logIndex: 20,
-              },
-            ],
-          },
-        },
-      });
-      return indexer;
-    }
+    const allActions = await indexer.Action.getAll();
+    expect(allActions).toHaveLength(2);
 
-    it("should link each Action to its own TransactionExecuted (not the other)", async () => {
-      const indexer = await processTwoExecuteCallsWithActions();
+    const action1 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_1);
+    const action2 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_2);
 
-      const evmTxId = `${CHAIN}_${TX_HASH}`;
-      const txId1 = `${CHAIN}_${TX_HASH}_10`;
-      const txId2 = `${CHAIN}_${TX_HASH}_20`;
+    expect(action1, "action1 should exist").toBeDefined();
+    expect(action2, "action2 should exist").toBeDefined();
 
-      const allActions = await indexer.Action.getAll();
-      expect(allActions).toHaveLength(2);
+    // Each action's evmTxId must be set
+    expect(action1!.evmTxId).toBe(evmTxId);
+    expect(action2!.evmTxId).toBe(evmTxId);
 
-      const action1 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_1);
-      const action2 = allActions.find((a) => a.actionTreeRoot === ACTION_ROOT_2);
+    // Each action must be linked to its own Transaction, not the other's
+    expect(action1!.transaction_id).toBe(txId1);
+    expect(action2!.transaction_id).toBe(txId2);
 
-      expect(action1, "action1 should exist").toBeDefined();
-      expect(action2, "action2 should exist").toBeDefined();
+    // Sanity: neither action should still be using the temporary evmTxId
+    expect(action1!.transaction_id).not.toBe(evmTxId);
+    expect(action2!.transaction_id).not.toBe(evmTxId);
+  });
 
-      // Each action's evmTxId must be set (new field added in Task 1)
-      expect(action1!.evmTxId).toBe(evmTxId);
-      expect(action2!.evmTxId).toBe(evmTxId);
+  it("should link each Tag to the execute() call that emitted it", async () => {
+    const indexer = await processTwoExecuteCalls();
 
-      // Each action must be linked to its own Transaction, not the other's
-      expect(action1!.transaction_id).toBe(txId1);
-      expect(action2!.transaction_id).toBe(txId2);
+    const txId1 = `${CHAIN}_${TX_HASH}_10`;
+    const txId2 = `${CHAIN}_${TX_HASH}_20`;
 
-      // Sanity: neither action should still be using the temporary evmTxId
-      expect(action1!.transaction_id).not.toBe(evmTxId);
-      expect(action2!.transaction_id).not.toBe(evmTxId);
-    });
+    const allTags = await indexer.Tag.getAll();
+    const byHash = (tagHash: string) => allTags.find((t) => t.tagHash === tagHash);
+
+    expect(byHash(NULLIFIER_1)!.transaction_id).toBe(txId1);
+    expect(byHash(COMMITMENT_1)!.transaction_id).toBe(txId1);
+    expect(byHash(NULLIFIER_2)!.transaction_id).toBe(txId2);
+    expect(byHash(COMMITMENT_2)!.transaction_id).toBe(txId2);
   });
 });
