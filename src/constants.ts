@@ -5,12 +5,6 @@
  */
 
 /**
- * Function selector for the execute() function on the Protocol Adapter contract.
- * First 4 bytes of keccak256("execute(((bytes32,bytes32,bytes32,bytes32,uint256,bytes32,bytes32,bytes32,bytes32,bytes32,bytes),(bytes32,bytes32,bytes32,bytes),bytes)[],(bytes,(bytes32,bytes32,bytes32,bytes32,bytes),(bytes,bytes,bytes))[],bytes,bytes)")
- */
-export const EXECUTE_SELECTOR = "0xed3cf91f";
-
-/**
  * Maximum number of decoded transaction calldata entries to cache.
  * Prevents unbounded memory growth when processing many transactions.
  */

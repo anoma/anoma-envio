@@ -21,8 +21,7 @@
  * }
  */
 
-import { decodeFunctionData, type Hex, type Abi } from "viem";
-import { EXECUTE_SELECTOR } from "../constants.js";
+import { decodeFunctionData, toFunctionSelector, type Hex, type Abi } from "viem";
 import type {
   Transaction,
   Action,
@@ -139,6 +138,14 @@ export const EXECUTE_ABI: Abi = [
     outputs: [],
   },
 ];
+
+/**
+ * Function selector for `execute`, derived from EXECUTE_ABI so it cannot drift from the shape
+ * the decoder actually feeds to viem.
+ */
+export const EXECUTE_SELECTOR: Hex = toFunctionSelector(
+  EXECUTE_ABI[0] as Parameters<typeof toFunctionSelector>[0]
+);
 
 // Raw decoded types from viem
 interface RawExpirableBlob {
