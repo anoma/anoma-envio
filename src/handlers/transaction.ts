@@ -42,6 +42,7 @@ const decodedCalldataCache = new BoundedCache<string, DecodedTransaction>(
  * Get decoded transaction data from cache or decode from calldata.
  */
 function getDecodedTransaction(
+  context: EvmOnEventContext,
   evmTxId: string,
   input: string | undefined
 ): DecodedTransaction | null {
@@ -58,7 +59,7 @@ function getDecodedTransaction(
 
   const result = decodeExecuteCalldata(input);
   if (!result.success) {
-    console.log(`Failed to decode calldata for ${evmTxId}: ${result.error}`);
+    context.log.warn(`Failed to decode calldata for ${evmTxId}: ${result.error}`);
     return null;
   }
 
@@ -89,7 +90,7 @@ indexer.onEvent(
 
     // Try to decode calldata for proofs
     // Note: event.transaction.input is available because we added "input" to field_selection
-    const decoded = getDecodedTransaction(evmTxId, event.transaction.input);
+    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
     // Create EVMTransaction entity (the carrier/wrapper, shared by all AP txs in this EVM tx)
     const evmTxEntity: EVMTransaction = {
@@ -171,7 +172,7 @@ indexer.onEvent(
     const createdLogicRefs = event.params.createdLogicRefs;
 
     // Try to decode calldata to get action details
-    const decoded = getDecodedTransaction(evmTxId, event.transaction.input);
+    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
     // Tag ids and logic refs come from the event alone, so they load in one round together with
     // the actions of this transaction still waiting for their TransactionExecuted.
@@ -194,7 +195,7 @@ indexer.onEvent(
     const actionIndex = pendingActions.filter((a) => a.transaction_id === evmTxId).length;
 
     if (decoded && actionIndex >= decoded.actions.length) {
-      console.warn(
+      context.log.warn(
         `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
           `(calldata decoded ${decoded.actions.length} action(s)); resource details omitted.`
       );
