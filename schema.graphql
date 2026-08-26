@@ -98,8 +98,8 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   unitDeltaX: String
   unitDeltaY: String
 
-  # Stable EVM-tx correlation key ({chainId}_{txHash}); lets TransactionExecuted
-  # locate this action without cross-event module state.
+  # EVM-tx correlation key ({chainId}_{txHash}); TransactionExecuted relinks the
+  # transaction's actions through it.
   evmTxId: String! @index
 
   # Relationships
