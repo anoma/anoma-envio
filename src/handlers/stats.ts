@@ -148,6 +148,11 @@ export async function incrementAllStats(
     ),
   ]);
 
+  // Writes are ignored during preload; the reads above already warmed the rows.
+  if (context.isPreload) {
+    return;
+  }
+
   context.Stats.set({
     ...stats,
     transactions: stats.transactions + BigInt(increments.transactions ?? 0),
