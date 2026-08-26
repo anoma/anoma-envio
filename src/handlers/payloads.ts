@@ -20,13 +20,15 @@ indexer.onEvent(
     const payloadEntity = createPayloadEntity(event, "resource");
     context.Payload.set(payloadEntity);
 
-    // Update stats
-    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
-      resourcePayloads: 1,
-    });
+    // The stats reads and the tag lookup are independent, so they share one read round.
+    const [, existingTag] = await Promise.all([
+      incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+        resourcePayloads: 1,
+      }),
+      context.Tag.get(tagId),
+    ]);
 
     // Create the Tag entity if ActionExecuted has not yet supplied the authoritative values.
-    const existingTag = await context.Tag.get(tagId);
     if (!existingTag) {
       const tagEntity: Tag = {
         id: tagId,
