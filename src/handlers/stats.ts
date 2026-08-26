@@ -60,33 +60,53 @@ function bump<T extends Counters>(
   return { ...row, ...counters, lastUpdatedBlock, lastUpdatedTimestamp };
 }
 
+export type StatsRows = {
+  dateKey: string;
+  dayTimestamp: bigint;
+  stats: Stats | undefined;
+  daily: DailyStats | undefined;
+  chainStats: ChainStats | undefined;
+  chainDaily: ChainDailyStats | undefined;
+};
+
 /**
- * Increments the global, daily, per-chain and per-chain-daily statistics in one batched read
- * round. Every handler that counts something goes through here.
+ * Reads the global, daily, per-chain and per-chain-daily rows. Handlers with other reads put
+ * this in the same Promise.all so the preload pass batches everything into one round.
  */
-export async function incrementAllStats(
+export async function loadStats(
   context: EvmOnEventContext,
+  chainId: number,
+  timestamp: number
+): Promise<StatsRows> {
+  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
+  const [stats, daily, chainStats, chainDaily] = await Promise.all([
+    context.Stats.get(STATS_ID),
+    context.DailyStats.get(dateKey),
+    context.ChainStats.get(String(chainId)),
+    context.ChainDailyStats.get(`${chainId}-${dateKey}`),
+  ]);
+  return { dateKey, dayTimestamp, stats, daily, chainStats, chainDaily };
+}
+
+/**
+ * Writes the four rows incremented by `increments`. A no-op during preload, where writes are
+ * ignored anyway.
+ */
+export function writeStats(
+  context: EvmOnEventContext,
+  rows: StatsRows,
   chainId: number,
   blockNumber: number,
   timestamp: number,
   increments: StatIncrements
-): Promise<void> {
-  const { dateKey, dayTimestamp } = getUTCDay(timestamp);
-  const chainKey = String(chainId);
-  const chainDateKey = `${chainId}-${dateKey}`;
-
-  const [stats, daily, chainStats, chainDaily] = await Promise.all([
-    context.Stats.get(STATS_ID),
-    context.DailyStats.get(dateKey),
-    context.ChainStats.get(chainKey),
-    context.ChainDailyStats.get(chainDateKey),
-  ]);
-
-  // Writes are ignored during preload; the reads above already warmed the rows.
+): void {
   if (context.isPreload) {
     return;
   }
 
+  const { dateKey, dayTimestamp, stats, daily, chainStats, chainDaily } = rows;
+  const chainKey = String(chainId);
+  const chainDateKey = `${chainId}-${dateKey}`;
   const block = BigInt(blockNumber);
   const time = BigInt(timestamp);
   const chain = BigInt(chainId);
@@ -129,4 +149,16 @@ export async function incrementAllStats(
     ...fresh,
   };
   context.ChainDailyStats.set(bump(chainDay, delta, block, time));
+}
+
+/** Reads and increments the stats rows for handlers that have no other reads. */
+export async function incrementAllStats(
+  context: EvmOnEventContext,
+  chainId: number,
+  blockNumber: number,
+  timestamp: number,
+  increments: StatIncrements
+): Promise<void> {
+  const rows = await loadStats(context, chainId, timestamp);
+  writeStats(context, rows, chainId, blockNumber, timestamp, increments);
 }
