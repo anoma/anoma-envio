@@ -21,7 +21,6 @@ field_selection:
   transaction_fields:
     - "hash"
     - "from"
-    - "to"
     - "value"
     - "input"
 
