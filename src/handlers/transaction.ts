@@ -27,7 +27,7 @@ import type {
 import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
 import { createEvmTxId, createResourceId, createTagId, createTransactionId } from "./ids.js";
-import { incrementAllStats } from "./stats.js";
+import { loadStats, writeStats } from "./stats.js";
 
 // Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
 // within it. Uses BoundedCache to prevent unbounded memory growth.
@@ -82,6 +82,19 @@ indexer.onEvent(
     // Note: event.transaction.input is available because we added "input" to field_selection
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
+    // Relink the actions and tags earlier handlers wrote against the correlation key. Rows from
+    // this batch come from the in-memory store and older ones from the database, so a restart
+    // between an action and its transaction cannot strand them.
+    const [actions, tags, statsRows] = await Promise.all([
+      context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
+      context.Tag.getWhere({ transaction_id: { _eq: evmTxId } }),
+      loadStats(context, event.chainId, event.block.timestamp),
+    ]);
+
+    if (context.isPreload) {
+      return;
+    }
+
     const evmTxEntity: EVMTransaction = {
       id: evmTxId,
       txHash: txHash,
@@ -109,14 +122,6 @@ indexer.onEvent(
 
     context.Transaction.set(txEntity);
 
-    // Relink the actions and tags earlier handlers wrote against the correlation key. Rows from
-    // this batch come from the in-memory store and older ones from the database, so a restart
-    // between an action and its transaction cannot strand them.
-    const [actions, tags] = await Promise.all([
-      context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
-      context.Tag.getWhere({ transaction_id: { _eq: evmTxId } }),
-    ]);
-
     for (const action of actions) {
       if (action.transaction_id === evmTxId) {
         context.Action.set({ ...action, transaction_id: txId });
@@ -126,15 +131,12 @@ indexer.onEvent(
       context.Tag.set({ ...tag, transaction_id: txId });
     }
 
-    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+    writeStats(context, statsRows, event.chainId, event.block.number, event.block.timestamp, {
       transactions: 1,
     });
 
-    // Clear the cache after processing is complete. Not during preload: the sequential pass
-    // still has to decode this transaction.
-    if (!context.isPreload) {
-      clearDecodedCache(evmTxId);
-    }
+    // The sequential pass is the last user of this transaction's decoded calldata.
+    clearDecodedCache(evmTxId);
   }
 );
 
@@ -164,13 +166,19 @@ indexer.onEvent(
     );
     const uniqueLogicRefs = [...new Set([...consumedLogicRefs, ...createdLogicRefs])];
     const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
-    const [pendingActions, existingTags, existingLogicRefs, existingChainLogicRefs] =
+    const [pendingActions, existingTags, existingLogicRefs, existingChainLogicRefs, statsRows] =
       await Promise.all([
         context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
         Promise.all(tagIds.map((id) => context.Tag.get(id))),
         Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
         Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
+        loadStats(context, event.chainId, event.block.timestamp),
       ]);
+
+    // Everything below writes; the preload pass only needed the reads above.
+    if (context.isPreload) {
+      return;
+    }
 
     // The contract emits ActionExecuted once per action in calldata order and events are
     // processed in that order, so this action's position is the number of actions of the same
@@ -298,7 +306,7 @@ indexer.onEvent(
       }
     }
 
-    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+    writeStats(context, statsRows, event.chainId, event.block.number, event.block.timestamp, {
       actions: 1,
       resources: orderedTags.length,
       tags: orderedTags.length,
