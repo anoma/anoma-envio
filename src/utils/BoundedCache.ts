@@ -28,12 +28,10 @@ export class BoundedCache<K, V> {
    * If the cache is full, the oldest entry will be evicted.
    */
   set(key: K, value: V): void {
-    // If key already exists, update it (moves to end in insertion order)
     if (this.cache.has(key)) {
       this.cache.delete(key);
     }
 
-    // Evict oldest entries if at capacity
     while (this.cache.size >= this.maxSize) {
       for (const oldestKey of this.cache.keys()) {
         this.cache.delete(oldestKey);

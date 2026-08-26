@@ -11,10 +11,6 @@ import type {
 import { createEventId } from "./ids.js";
 import { incrementAllStats } from "./stats.js";
 
-// ============================================
-// CommitmentTreeRootAdded Handler
-// ============================================
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "CommitmentTreeRootAdded" },
   async ({ event, context }) => {
@@ -32,19 +28,14 @@ indexer.onEvent(
 
     context.CommitmentTreeRoot.set(entity);
 
-    // Update stats
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       commitmentRoots: 1,
     });
   }
 );
 
-// ============================================
-// KindTableCommitmentUpdated Handler
-// ============================================
 // Emitted by initialize() with the empty-table commitment and by every setKindTableCommitment
 // call, so the latest row per chain is the kind table transactions must currently prove against.
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "KindTableCommitmentUpdated" },
   async ({ event, context }) => {
@@ -63,10 +54,6 @@ indexer.onEvent(
     context.KindTableCommitment.set(entity);
   }
 );
-
-// ============================================
-// ForwarderCallExecuted Handler
-// ============================================
 
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ForwarderCallExecuted" },
@@ -92,10 +79,6 @@ indexer.onEvent(
   }
 );
 
-// ============================================
-// OwnershipTransferred Handler
-// ============================================
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "OwnershipTransferred" },
   async ({ event, context }) => {
@@ -114,10 +97,6 @@ indexer.onEvent(
     context.OwnershipTransferred.set(entity);
   }
 );
-
-// ============================================
-// Paused / Unpaused Handlers
-// ============================================
 
 indexer.onEvent({ contract: "ProtocolAdapter", event: "Paused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
@@ -150,10 +129,6 @@ indexer.onEvent({ contract: "ProtocolAdapter", event: "Unpaused" }, async ({ eve
 
   context.ProtocolAdapterPaused.set(entity);
 });
-
-// ============================================
-// Upgraded Handler
-// ============================================
 
 // The v2 adapters sit behind ERC-1967 proxies, so the implementation can change under a fixed
 // address. Recorded on its own, independent of the pause state and of transaction processing.
