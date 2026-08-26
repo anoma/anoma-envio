@@ -22,10 +22,6 @@ indexer.onEvent(
   }
 );
 
-// ============================================
-// Paused / Unpaused Handlers
-// ============================================
-
 indexer.onEvent({ contract: "ProtocolAdapter", event: "Paused" }, async ({ event, context }) => {
   const eventId = createEventId(event);
 
@@ -58,13 +54,8 @@ indexer.onEvent({ contract: "ProtocolAdapter", event: "Unpaused" }, async ({ eve
   context.ProtocolAdapterPaused.set(entity);
 });
 
-// ============================================
-// Upgraded Handler
-// ============================================
-
 // The v2 adapters sit behind ERC-1967 proxies, so the implementation can change under a fixed
 // address. Recorded on its own, independent of the pause state and of transaction processing.
-
 indexer.onEvent({ contract: "ProtocolAdapter", event: "Upgraded" }, async ({ event, context }) => {
   const entity: ProtocolAdapterUpgraded = {
     id: createEventId(event),

@@ -1,10 +1,6 @@
 # Anoma Protocol Adapter GraphQL Schema
 # Entities follow Anoma specification from pa-evm/contracts/src/interfaces/IProtocolAdapter.sol
 
-# ============================================
-# Enums
-# ============================================
-
 # Blob deletion criterion from PA-EVM DeletionCriterion
 enum DeletionCriterion {
   immediately # Blob should be deleted after processing (value: 0)
@@ -18,10 +14,6 @@ enum PayloadCategory {
   externalCall # ExternalPayload - data for external/forwarder calls
   application # ApplicationPayload - application-specific data
 }
-
-# ============================================
-# EVM Types
-# ============================================
 
 # EVMTransaction - The EVM transaction that carries Anoma transaction(s)
 # This represents the blockchain carrier/wrapper, not the Anoma payload.
@@ -42,10 +34,6 @@ type EVMTransaction
   # Relationships
   transactions: [Transaction!]! @derivedFrom(field: "evmTransaction")
 }
-
-# ============================================
-# Core Anoma Types
-# ============================================
 
 # Transaction - The Anoma transaction payload embedded in an EVM transaction
 # Corresponds to: struct Transaction { Action[] actions; bytes deltaProof; bytes aggregationProof; }
@@ -74,7 +62,7 @@ type Transaction
   # Relationship to EVM carrier
   evmTransaction: EVMTransaction! @index
 
-  # Relationships (note: tags is a convenience, canonical path is via actions/complianceUnits)
+  # Relationships (tags is a convenience; the canonical path is via actions)
   actions: [Action!]! @derivedFrom(field: "transaction")
   tags: [Tag!]! @derivedFrom(field: "transaction")
 }
@@ -157,10 +145,6 @@ type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "
   payloads: [Payload!]! @derivedFrom(field: "tag")
 }
 
-# ============================================
-# Payload Types (from events)
-# ============================================
-
 # Unified Payload type for all payload events (Resource, Discovery, External, Application)
 # Note: blockNumber, chainId, timestamp can be accessed via tag.transaction
 type Payload {
@@ -172,10 +156,6 @@ type Payload {
   deletionCriterion: DeletionCriterion
   tag: Tag @index
 }
-
-# ============================================
-# State Tracking Types
-# ============================================
 
 # CommitmentTreeRoot - Merkle tree root for resource commitments
 type CommitmentTreeRoot
@@ -251,10 +231,6 @@ type ProtocolAdapterUpgraded {
   chainId: BigInt!
 }
 
-# ============================================
-# Distinct Logic Tracking
-# ============================================
-
 # LogicRef - Tracks each distinct logic verifying key seen on-chain
 # Used to compute the distinctLogics counter in Stats.
 type LogicRef {
@@ -264,10 +240,6 @@ type LogicRef {
   firstSeenChainId: BigInt!
   firstSeenTxHash: String!
 }
-
-# ============================================
-# Aggregate Statistics
-# ============================================
 
 # Stats - Global statistics singleton (id: "global")
 # Counters are incremented by event handlers for accurate totals.

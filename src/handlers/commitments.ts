@@ -21,19 +21,14 @@ indexer.onEvent(
 
     context.CommitmentTreeRoot.set(entity);
 
-    // Update stats
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
       commitmentRoots: 1,
     });
   }
 );
 
-// ============================================
-// KindTableCommitmentUpdated Handler
-// ============================================
 // Emitted by initialize() with the empty-table commitment and by every setKindTableCommitment
 // call, so the latest row per chain is the kind table transactions must currently prove against.
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "KindTableCommitmentUpdated" },
   async ({ event, context }) => {
@@ -52,7 +47,3 @@ indexer.onEvent(
     context.KindTableCommitment.set(entity);
   }
 );
-
-// ============================================
-// ForwarderCallExecuted Handler
-// ============================================
