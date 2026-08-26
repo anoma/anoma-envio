@@ -28,11 +28,3 @@ export interface Action {
   unitDelta: Delta;
   actionTreeRoot: `0x${string}`;
 }
-
-export interface ActionExecutedEvent {
-  actionTreeRoot: `0x${string}`;
-  nullifiers: `0x${string}`[];
-  consumedLogicRefs: `0x${string}`[];
-  commitments: `0x${string}`[];
-  createdLogicRefs: `0x${string}`[];
-}

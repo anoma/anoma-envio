@@ -9,8 +9,8 @@ export class BoundedCache<K, V> {
   private maxSize: number;
 
   constructor(maxSize: number) {
-    if (maxSize <= 0) {
-      throw new Error("maxSize must be positive");
+    if (!Number.isInteger(maxSize) || maxSize <= 0) {
+      throw new Error("maxSize must be a positive integer");
     }
     this.cache = new Map();
     this.maxSize = maxSize;
@@ -21,13 +21,6 @@ export class BoundedCache<K, V> {
    */
   get(key: K): V | undefined {
     return this.cache.get(key);
-  }
-
-  /**
-   * Check if a key exists in the cache.
-   */
-  has(key: K): boolean {
-    return this.cache.has(key);
   }
 
   /**
@@ -42,9 +35,9 @@ export class BoundedCache<K, V> {
 
     // Evict oldest entries if at capacity
     while (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value as K | undefined;
-      if (oldestKey !== undefined) {
+      for (const oldestKey of this.cache.keys()) {
         this.cache.delete(oldestKey);
+        break;
       }
     }
 
@@ -56,19 +49,5 @@ export class BoundedCache<K, V> {
    */
   delete(key: K): boolean {
     return this.cache.delete(key);
-  }
-
-  /**
-   * Clear all entries from the cache.
-   */
-  clear(): void {
-    this.cache.clear();
-  }
-
-  /**
-   * Get the current size of the cache.
-   */
-  get size(): number {
-    return this.cache.size;
   }
 }

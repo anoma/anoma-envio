@@ -20,11 +20,3 @@ export interface Transaction {
   deltaProof: `0x${string}`;
   aggregationProof: `0x${string}`;
 }
-
-/**
- * The transaction id is the Keccak-256 hash of the concatenated action tree roots — the message
- * the delta proof signs, unique per transaction and known to the sender before submission.
- */
-export interface TransactionExecutedEvent {
-  transactionId: `0x${string}`;
-}
