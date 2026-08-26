@@ -2,7 +2,6 @@ name: anoma-envio
 save_full_history: false
 contracts:
   - name: ProtocolAdapter
-    handler: src/EventHandlers.ts
     events:
       - event: ActionExecuted(bytes32 actionTreeRoot, bytes32[] nullifiers, bytes32[] consumedLogicRefs, bytes32[] commitments, bytes32[] createdLogicRefs)
       - event: ApplicationPayload(bytes32 indexed tag, uint256 index, bytes blob)

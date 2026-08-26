@@ -35,7 +35,7 @@ fresh clone. `pnpm dev` needs Docker running, since Envio brings up Postgres its
 | [`config.yaml`](config.yaml)                   | chains, contract addresses, `start_block`, indexed events |
 | [`config.prod.yaml`](config.prod.yaml)         | the narrower chain set production indexes                 |
 | [`schema.graphql`](schema.graphql)             | GraphQL entities and relationships                        |
-| [`src/EventHandlers.ts`](src/EventHandlers.ts) | per-event logic and the intra-transaction event order     |
+| [`src/handlers/`](src/handlers/)               | per-event logic and the intra-transaction event order     |
 | [`docker-compose.yml`](docker-compose.yml)     | environment variables for containerised runs              |
 | [`.github/workflows/`](.github/workflows/)     | what CI runs and how images are tagged                    |
 
