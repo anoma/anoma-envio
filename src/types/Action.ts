@@ -14,7 +14,9 @@
  * }
  */
 
-import type { Consumed, Created } from "./Resource";
+import type { Hex } from "viem";
+
+import type { Consumed, Created } from "./Resource.js";
 
 /** A secp256k1 point — the delta value of an action's compliance unit. */
 export interface Delta {
@@ -26,5 +28,5 @@ export interface Action {
   consumed: Consumed[];
   created: Created[];
   unitDelta: Delta;
-  actionTreeRoot: `0x${string}`;
+  actionTreeRoot: Hex;
 }

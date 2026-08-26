@@ -7,6 +7,8 @@
  * From PA-EVM interfaces/IProtocolAdapter.sol.
  */
 
+import type { Hex } from "viem";
+
 export enum DeletionCriterion {
   Immediately = 0,
   Never = 1,
@@ -14,7 +16,7 @@ export enum DeletionCriterion {
 
 export interface ExpirableBlob {
   deletionCriterion: DeletionCriterion;
-  blob: `0x${string}`;
+  blob: Hex;
 }
 
 export interface AppData {

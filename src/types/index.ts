@@ -4,7 +4,7 @@
  * These types follow the Anoma specification from PA-EVM contracts.
  */
 
-export * from "./Logic";
-export * from "./Resource";
-export * from "./Action";
-export * from "./Transaction";
+export * from "./Logic.js";
+export * from "./Resource.js";
+export * from "./Action.js";
+export * from "./Transaction.js";

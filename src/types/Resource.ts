@@ -9,17 +9,19 @@
  * proven against; a created one has no such root yet.
  */
 
-import type { AppData } from "./Logic";
+import type { Hex } from "viem";
+
+import type { AppData } from "./Logic.js";
 
 export interface Consumed {
-  nullifier: `0x${string}`;
-  logicRef: `0x${string}`;
-  commitmentTreeRoot: `0x${string}`;
+  nullifier: Hex;
+  logicRef: Hex;
+  commitmentTreeRoot: Hex;
   appData: AppData;
 }
 
 export interface Created {
-  commitment: `0x${string}`;
-  logicRef: `0x${string}`;
+  commitment: Hex;
+  logicRef: Hex;
   appData: AppData;
 }

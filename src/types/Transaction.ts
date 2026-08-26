@@ -13,10 +13,12 @@
  * }
  */
 
-import type { Action } from "./Action";
+import type { Hex } from "viem";
+
+import type { Action } from "./Action.js";
 
 export interface Transaction {
   actions: Action[];
-  deltaProof: `0x${string}`;
-  aggregationProof: `0x${string}`;
+  deltaProof: Hex;
+  aggregationProof: Hex;
 }
