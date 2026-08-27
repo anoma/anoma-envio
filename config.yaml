@@ -24,7 +24,7 @@ field_selection:
     - "input"
 
 # The ProtocolAdapter ERC1967 proxy addresses are taken from here:
-# https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-rc.0/crates/bindings/deployments.json
+# https://github.com/anoma/pa-evm/blob/contracts/v2.0.0-rc.1/crates/bindings/deployments.json
 chains:
   - id: 84532 # Base Sepolia
     start_block: 45511361
