@@ -50,7 +50,15 @@ say which suites actually executed rather than reporting the exit code.
 
 The reverse trap is worth knowing too: if `ENVIO_GRAPHQL_URL` is set in your shell but
 points somewhere stale, those suites run and fail on unrelated parse errors that look like
-indexer bugs.
+indexer bugs. Resolve a live endpoint rather than trusting the exported one; it changes on
+every redeploy:
+
+```bash
+npx envio-cloud indexer get anoma-envio-v2-dev --org anoma -o json   # read gql_endpoint
+```
+
+Pick the indexer whose branch matches the code under test (see below). `pnpm dev` serves a
+local endpoint too, which is the better target when no hosted indexer has your branch yet.
 
 ## The three files that carry the behavior
 
@@ -167,20 +175,25 @@ CLI's `--help` wins. Do not invent flags.
 
 ## Some branches deploy themselves
 
-Envio watches this repository and redeploys on push. `next`, `main` and the pa-evm v2
-branch all have autodeploy on, so a push to any of them starts a live indexer; none is a
-private branch. `main` feeds the staging indexer, while the production and explorer
-indexers also track `main` but are deployed by hand.
+Envio watches this repository and redeploys on push, but only for two projects:
+`anoma-envio-dev` on `next` and `anoma-envio-stag` on `main`. A push to either starts a
+live indexer, so neither branch is private. Everything else is deployed by hand, including
+production, both explorer indexers and both v2 indexers.
 
 Work on a feature branch and open a PR; see [DEPLOYMENTS.md](DEPLOYMENTS.md) for which
 project watches which branch, and for the hours budget that makes stale deployments
-expensive.
+expensive. Those settings are changed through the Envio UI without touching this repo, so
+confirm them against the API rather than the table:
 
-The pa-evm v2 migration is live work, not a hypothetical: `heueristik/pa-v2-events` has its
-own indexer, `anoma-envio-dev-v2`, and an open draft PR that rewrites `schema.graphql`,
-`src/types/` and the handlers for v2 events. Before deleting anything that looks dead on
-`main`, check whether that branch reshapes it. Two unreferenced event interfaces were
-nearly removed that way; v2 rebuilds them rather than dropping them.
+```bash
+npx envio-cloud indexer settings get INDEXER --org anoma -o json   # branch, auto_deploy
+```
+
+The pa-evm v2 migration has two indexers of its own: `anoma-envio-v2` on `pa-v2` and
+`anoma-envio-v2-dev` on `pa-v2-next`, the integration branch that feeds it. Both are manual
+deploys. Before deleting anything that looks dead on `main`, check whether v2 reshapes it.
+Two unreferenced event interfaces were nearly removed that way; v2 rebuilds them rather
+than dropping them.
 
 The hosted deployments are inspectable from the terminal with the separate `envio-cloud`
 package (`npx envio-cloud`), which is useful when a question is really about what is

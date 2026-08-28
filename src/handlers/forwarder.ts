@@ -10,14 +10,16 @@ indexer.onEvent(
     const eventId = createEventId(event);
 
     const entity: ForwarderCall = {
+      // indexer metadata
       id: eventId,
-      untrustedForwarder: event.params.untrustedForwarder,
-      input: event.params.input,
-      output: event.params.output,
       blockNumber: BigInt(event.block.number),
       txHash: event.transaction.hash,
       timestamp: BigInt(event.block.timestamp),
       chainId: BigInt(event.chainId),
+      // pa-evm event params
+      untrustedForwarder: event.params.untrustedForwarder,
+      input: event.params.input,
+      output: event.params.output,
     };
 
     context.ForwarderCall.set(entity);

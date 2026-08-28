@@ -25,9 +25,11 @@ indexer.onEvent(
     // Create the Tag entity if ActionExecuted has not yet supplied the authoritative values.
     if (!existingTag) {
       const tagEntity: Tag = {
+        // indexer metadata
         id: tagId,
-        tagHash: event.params.tag,
-        index: 0, // Placeholder — ActionExecuted sets the canonical position
+        // Placeholder — ActionExecuted sets the canonical position. Not the event's `index`
+        // param, which is a blob position and belongs to Payload.
+        index: 0,
         actionLogIndex: undefined, // Set by ActionExecuted, which knows the action
         isConsumed: false, // Placeholder — ActionExecuted sets the side
         blockNumber: BigInt(event.block.number),
@@ -36,6 +38,8 @@ indexer.onEvent(
         transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
         logicRef: undefined, // Will be set by ActionExecuted
         resource_id: undefined,
+        // pa-evm event params
+        tagHash: event.params.tag,
       };
       context.Tag.set(tagEntity);
     }
@@ -60,14 +64,16 @@ function createPayloadEntity(
   const tagId = createTagId(event.chainId, event.params.tag);
 
   return {
+    // indexer metadata
     id: eventId,
     category: category,
-    tagHash: event.params.tag,
-    index: Number(event.params.index),
-    blob: event.params.blob,
     // The protocol adapter only emits payload events for blobs marked `Never`.
     deletionCriterion: "never",
     tag_id: tagId,
+    // pa-evm event params
+    tagHash: event.params.tag,
+    index: Number(event.params.index),
+    blob: event.params.blob,
   };
 }
 
