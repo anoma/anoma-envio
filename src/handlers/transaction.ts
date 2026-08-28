@@ -26,6 +26,8 @@ import { DeletionCriterion } from "../types/index.js";
 import type {
   Action as DecodedAction,
   AppData,
+  Consumed,
+  Created,
   Transaction as DecodedTransaction,
 } from "../types/index.js";
 import { BoundedCache } from "../utils/BoundedCache.js";
@@ -38,6 +40,26 @@ import {
   createTransactionId,
 } from "./ids.js";
 import { loadStats, writeStats } from "./stats.js";
+
+/**
+ * One tag of an action, paired with what calldata decoding knows about its resource. Only a
+ * consumed resource names the commitment tree root it was proven against.
+ */
+function tagOf(
+  tagHash: string,
+  logicRef: string,
+  isConsumed: boolean,
+  resource: Consumed | Created | undefined
+) {
+  return {
+    tagHash,
+    logicRef,
+    isConsumed,
+    appData: resource?.appData,
+    commitmentTreeRoot:
+      resource && "commitmentTreeRoot" in resource ? resource.commitmentTreeRoot : undefined,
+  };
+}
 
 // Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
 // within it. Uses BoundedCache to prevent unbounded memory growth.
@@ -248,20 +270,8 @@ indexer.onEvent(
     // array order is the canonical tag order. Tag.index and Resource.index both follow it.
     let immediateExternalCount = 0;
     const orderedTags = [
-      ...nullifiers.map((tagHash, i) => ({
-        tagHash,
-        logicRef: consumedLogicRefs[i],
-        isConsumed: true,
-        appData: decodedAction?.consumed[i]?.appData,
-        commitmentTreeRoot: decodedAction?.consumed[i]?.commitmentTreeRoot,
-      })),
-      ...commitments.map((tagHash, i) => ({
-        tagHash,
-        logicRef: createdLogicRefs[i],
-        isConsumed: false,
-        appData: decodedAction?.created[i]?.appData,
-        commitmentTreeRoot: undefined,
-      })),
+      ...nullifiers.map((t, i) => tagOf(t, consumedLogicRefs[i], true, decodedAction?.consumed[i])),
+      ...commitments.map((t, i) => tagOf(t, createdLogicRefs[i], false, decodedAction?.created[i])),
     ];
 
     for (let index = 0; index < orderedTags.length; index++) {
