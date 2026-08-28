@@ -7,15 +7,16 @@ import { incrementAllStats } from "./stats.js";
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ForwarderCallExecuted" },
   async ({ event, context }) => {
-    const eventId = createEventId(event);
+    const { chainId } = event;
+    const { number: blockNumber, timestamp } = event.block;
 
     const entity: ForwarderCall = {
       // indexer metadata
-      id: eventId,
-      blockNumber: BigInt(event.block.number),
+      id: createEventId(event),
+      blockNumber: BigInt(blockNumber),
       txHash: event.transaction.hash,
-      timestamp: BigInt(event.block.timestamp),
-      chainId: BigInt(event.chainId),
+      timestamp: BigInt(timestamp),
+      chainId: BigInt(chainId),
       // pa-evm event params
       untrustedForwarder: event.params.untrustedForwarder,
       input: event.params.input,
@@ -24,7 +25,7 @@ indexer.onEvent(
 
     context.ForwarderCall.set(entity);
 
-    await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+    await incrementAllStats(context, chainId, blockNumber, timestamp, {
       forwarderCalls: 1,
     });
   }
