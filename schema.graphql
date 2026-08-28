@@ -86,11 +86,12 @@ type Action @index(fields: ["chainId", "blockNumber"]) {
   unitDeltaX: String
   unitDeltaY: String
 
-  # EVM-tx correlation key ({chainId}_{txHash}); TransactionExecuted relinks the
-  # transaction's actions through it.
+  # EVM-tx correlation key ({chainId}_{txHash}). Scopes the relink query, which cannot filter on
+  # the pending marker alone: that value is shared by every unrelinked row on every chain.
   evmTxId: String! @index
 
   # Relationships
+  # Holds PENDING_TRANSACTION_ID between this action's ActionExecuted and its TransactionExecuted.
   transaction: Transaction! @index
   resources: [Resource!]! @derivedFrom(field: "action")
 }
@@ -139,7 +140,11 @@ type Tag @index(fields: ["chainId", "blockNumber"]) @index(fields: ["chainId", "
   # Logic reference from ActionExecuted.consumedLogicRefs / .createdLogicRefs
   logicRef: String
 
+  # EVM-tx correlation key ({chainId}_{txHash}); scopes the relink query, as on Action.
+  evmTxId: String! @index
+
   # Relationships
+  # Holds PENDING_TRANSACTION_ID between the event that created this tag and TransactionExecuted.
   transaction: Transaction! @index
   resource: Resource
   payloads: [Payload!]! @derivedFrom(field: "tag")
