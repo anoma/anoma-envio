@@ -8,7 +8,8 @@ import { incrementAllStats } from "./stats.js";
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ResourcePayload" },
   async ({ event, context }) => {
-    const tagId = createTagId(event.chainId, event.params.tag);
+    const tagHash = event.params.tag;
+    const tagId = createTagId(event.chainId, tagHash);
     const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
     const payloadEntity = createPayloadEntity(event, "resource");
@@ -39,7 +40,7 @@ indexer.onEvent(
         logicRef: undefined, // Will be set by ActionExecuted
         resource_id: undefined,
         // pa-evm event params
-        tagHash: event.params.tag,
+        tagHash: tagHash,
       };
       context.Tag.set(tagEntity);
     }
@@ -61,7 +62,8 @@ function createPayloadEntity(
   category: "resource" | "discovery" | "externalCall" | "application"
 ): Payload {
   const eventId = createEventId(event);
-  const tagId = createTagId(event.chainId, event.params.tag);
+  const tagHash = event.params.tag;
+  const tagId = createTagId(event.chainId, tagHash);
 
   return {
     // indexer metadata
@@ -71,7 +73,7 @@ function createPayloadEntity(
     deletionCriterion: "never",
     tag_id: tagId,
     // pa-evm event params
-    tagHash: event.params.tag,
+    tagHash: tagHash,
     index: Number(event.params.index),
     blob: event.params.blob,
   };

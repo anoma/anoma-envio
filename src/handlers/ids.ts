@@ -28,6 +28,16 @@ export function createTransactionId(chainId: number, txHash: string, logIndex: n
 }
 
 /**
+ * Creates an Action identifier from its EVM transaction and action tree root. Multiple actions
+ * can share one EVM transaction, so the root separates them. Two actions of one transaction can
+ * only collide here if both consume nothing; otherwise the repeated nullifier reverts the
+ * transaction on-chain.
+ */
+export function createActionId(evmTxId: string, actionTreeRoot: string): string {
+  return `${evmTxId}_${actionTreeRoot}`;
+}
+
+/**
  * Creates a tag identifier from chain and tag hash. The chain prefix keeps one tag separate
  * across chains. Within a chain the adapter reverts on a repeated nullifier, while commitment
  * uniqueness rests on the compliance circuit rather than on any contract check.

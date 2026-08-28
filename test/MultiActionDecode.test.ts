@@ -55,59 +55,53 @@ describe("Multi-action decode", () => {
   ]);
 
   const evmTxId = `${CHAIN}_${TX_HASH}`;
+  const tx = { hash: TX_HASH, input: CALLDATA, value: 0n };
 
-  async function run() {
-    const indexer = createTestIndexer();
-    const tx = { hash: TX_HASH, input: CALLDATA, value: 0n };
-    await indexer.process({
-      chains: {
-        [CHAIN]: {
-          simulate: [
-            {
-              contract: "ProtocolAdapter",
-              event: "ActionExecuted",
-              params: {
-                actionTreeRoot: ROOT0,
-                nullifiers: [N0],
-                consumedLogicRefs: [VK_N0],
-                commitments: [C0],
-                createdLogicRefs: [VK_C0],
-              },
-              srcAddress: CONTRACT,
-              block: { number: BLOCK, timestamp: TIMESTAMP },
-              transaction: tx,
-              logIndex: 5,
-            },
-            {
-              contract: "ProtocolAdapter",
-              event: "ActionExecuted",
-              params: {
-                actionTreeRoot: ROOT1,
-                nullifiers: [N1],
-                consumedLogicRefs: [VK_N1],
-                commitments: [C1],
-                createdLogicRefs: [VK_C1],
-              },
-              srcAddress: CONTRACT,
-              block: { number: BLOCK, timestamp: TIMESTAMP },
-              transaction: tx,
-              logIndex: 10,
-            },
-            {
-              contract: "ProtocolAdapter",
-              event: "TransactionExecuted",
-              params: { transactionId: b32("transaction-0") },
-              srcAddress: CONTRACT,
-              block: { number: BLOCK, timestamp: TIMESTAMP },
-              transaction: tx,
-              logIndex: 15,
-            },
-          ],
-        },
+  const actionEvent = (
+    actionTreeRoot: string,
+    nullifier: string,
+    consumedLogicRef: string,
+    commitment: string,
+    createdLogicRef: string,
+    logIndex: number
+  ) =>
+    ({
+      contract: "ProtocolAdapter",
+      event: "ActionExecuted",
+      params: {
+        actionTreeRoot,
+        nullifiers: [nullifier],
+        consumedLogicRefs: [consumedLogicRef],
+        commitments: [commitment],
+        createdLogicRefs: [createdLogicRef],
       },
-    });
+      srcAddress: CONTRACT,
+      block: { number: BLOCK, timestamp: TIMESTAMP },
+      transaction: tx,
+      logIndex,
+    }) as const;
+
+  const ACTION_0 = actionEvent(ROOT0, N0, VK_N0, C0, VK_C0, 5);
+  const ACTION_1 = actionEvent(ROOT1, N1, VK_N1, C1, VK_C1, 10);
+  const TX_EVENT = {
+    contract: "ProtocolAdapter",
+    event: "TransactionExecuted",
+    params: { transactionId: b32("transaction-0") },
+    srcAddress: CONTRACT,
+    block: { number: BLOCK, timestamp: TIMESTAMP },
+    transaction: tx,
+    logIndex: 15,
+  } as const;
+
+  async function process(simulate: unknown[]) {
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: { [CHAIN]: { simulate } },
+    } as Parameters<typeof indexer.process>[0]);
     return indexer;
   }
+
+  const run = () => process([ACTION_0, ACTION_1, TX_EVENT]);
 
   it("F1: each action carries its OWN decoded unit delta", async () => {
     const indexer = await run();
@@ -177,6 +171,30 @@ describe("Multi-action decode", () => {
     expect(tags.find((t) => t.tagHash === C0)!.index).toBe(1);
     expect(tags.find((t) => t.tagHash === N1)!.index).toBe(0);
     expect(tags.find((t) => t.tagHash === C1)!.index).toBe(1);
+  });
+
+  // The contract emits the actions in calldata order, so position and root always agree. If they
+  // ever stopped agreeing, dropping the calldata details beats attaching another action's delta
+  // and payload counts, which is what a positional read alone would do.
+  it("drops the decoded details when the root at that position disagrees", async () => {
+    const indexer = await process([
+      { ...ACTION_1, logIndex: 5 },
+      { ...ACTION_0, logIndex: 10 },
+      TX_EVENT,
+    ]);
+
+    const actions = await indexer.Action.getAll();
+    expect(actions).toHaveLength(2);
+    for (const a of actions) {
+      expect(a.unitDeltaX, `action ${a.id}`).toBeUndefined();
+      expect(a.unitDeltaY, `action ${a.id}`).toBeUndefined();
+    }
+
+    const resources = await indexer.Resource.getAll();
+    expect(resources).toHaveLength(4);
+    for (const r of resources) {
+      expect(r.resourcePayloadCount, `resource ${r.id}`).toBeUndefined();
+    }
   });
 
   it("relinks actions and tags to the Transaction once TransactionExecuted arrives", async () => {

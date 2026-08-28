@@ -11,6 +11,9 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 
+import { b32, blob, consumed, created, action, encodeExecute } from "./fixtures/encode-tx.js";
+import { DeletionCriterion } from "../src/types/index.js";
+
 // Simulated blocks must sit at or above the chain's start_block in config.yaml.
 // Envio filters anything below it before the handler runs, and a simulate item
 // that reaches no handler is an error. Offsets preserve the original ordering.
@@ -122,6 +125,65 @@ describe("Stats Counters", () => {
           },
         },
       });
+
+      const stats = await indexer.Stats.getOrThrow(STATS_ID);
+      expect(stats.externalCalls).toBe(1n);
+    });
+
+    // An `Immediately` blob makes its forwarder call and is then dropped, so it never reaches
+    // the ExternalPayload handler. The Payload row still comes from calldata, and the counter
+    // has to follow it or the stat disagrees with the table it summarises.
+    it("should increment externalCalls for an Immediately blob taken from calldata", async () => {
+      const N0 = b32("nullifier-0");
+      const C0 = b32("commitment-0");
+      const ROOT = b32("action-root-0");
+      const CONTRACT = "0xb5A5a52Af29dA0c8801D9caf4D75a4d6C3895f0A";
+
+      const indexer = createTestIndexer();
+      await indexer.process({
+        chains: {
+          84532: {
+            simulate: [
+              {
+                contract: "ProtocolAdapter",
+                event: "ActionExecuted",
+                params: {
+                  actionTreeRoot: ROOT,
+                  nullifiers: [N0],
+                  consumedLogicRefs: [b32("vk-n0")],
+                  commitments: [C0],
+                  createdLogicRefs: [b32("vk-c0")],
+                },
+                srcAddress: CONTRACT,
+                block: { number: BLOCK, timestamp: 0 },
+                transaction: {
+                  hash: TX_HASH,
+                  value: 0n,
+                  input: encodeExecute([
+                    action(
+                      [
+                        consumed(N0, b32("vk-n0"), {
+                          externalPayload: [
+                            blob("0xaa", DeletionCriterion.Immediately),
+                            blob("0xbb", DeletionCriterion.Never),
+                          ],
+                        }),
+                      ],
+                      [created(C0, b32("vk-c0"))],
+                      ROOT
+                    ),
+                  ]),
+                },
+                logIndex: 0,
+              },
+            ],
+          },
+        },
+      });
+
+      // Only the Immediately blob: the Never one arrives as its own ExternalPayload event.
+      const payloads = await indexer.Payload.getAll();
+      expect(payloads.filter((p) => p.category === "externalCall")).toHaveLength(1);
 
       const stats = await indexer.Stats.getOrThrow(STATS_ID);
       expect(stats.externalCalls).toBe(1n);
