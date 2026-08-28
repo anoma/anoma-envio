@@ -246,6 +246,7 @@ indexer.onEvent(
 
     // ActionExecuted lists the consumed nullifiers and then the created commitments, and that
     // array order is the canonical tag order. Tag.index and Resource.index both follow it.
+    let immediateExternalCount = 0;
     const orderedTags = [
       ...nullifiers.map((tagHash, i) => ({
         tagHash,
@@ -313,7 +314,13 @@ indexer.onEvent(
       context.Resource.set(resourceEntity);
 
       if (appData) {
-        writeImmediateExternalPayloads(context, resourceId, tagId, tagHash, appData);
+        immediateExternalCount += writeImmediateExternalPayloads(
+          context,
+          resourceId,
+          tagId,
+          tagHash,
+          appData
+        );
       }
     }
 
@@ -353,6 +360,7 @@ indexer.onEvent(
       tags: orderedTags.length,
       tagsConsumed: nullifiers.length,
       tagsCreated: commitments.length,
+      externalCalls: immediateExternalCount,
       distinctLogics: newLogicCount,
       chainDistinctLogics: newChainLogicCount,
     });
@@ -360,7 +368,9 @@ indexer.onEvent(
 );
 
 /**
- * Writes Payload entities for the external payloads that never produce an event.
+ * Writes Payload entities for the external payloads that never produce an event, and returns
+ * how many were written so the caller can count them into the externalCalls stat, which the
+ * ExternalPayload handler raises for the emitted ones.
  *
  * Every external blob drives a forwarder call whatever its deletion criterion, but
  * _emitAppDataBlobs emits a payload event only for the ones marked `Never`. Taking the
@@ -373,7 +383,8 @@ function writeImmediateExternalPayloads(
   tagId: string,
   tagHash: string,
   appData: AppData
-): void {
+): number {
+  let written = 0;
   for (let index = 0; index < appData.externalPayload.length; index++) {
     const blob = appData.externalPayload[index];
     if (blob.deletionCriterion !== DeletionCriterion.Immediately) {
@@ -391,5 +402,7 @@ function writeImmediateExternalPayloads(
       blob: blob.blob,
       deletionCriterion: "immediately",
     });
+    written++;
   }
+  return written;
 }
