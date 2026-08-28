@@ -2,11 +2,15 @@
  * Event handlers for Anoma Protocol Adapter events.
  *
  * PA-EVM Event Order (within same EVM transaction), per pa-evm ProtocolAdapter._execute:
- * 1. ForwarderCallExecuted (per external payload, before that resource's payload events)
- * 2. ResourcePayload/DiscoveryPayload/ExternalPayload/ApplicationPayload (per resource)
- * 3. ActionExecuted (once per action)
- * 4. CommitmentTreeRootAdded (once, after all actions, when commitments were added)
- * 5. TransactionExecuted (once at the end)
+ * 1. Per action, per resource in _processAction (all consumed, then all created):
+ *    a. ForwarderCallExecuted, once per external blob of that resource
+ *    b. ResourcePayload/DiscoveryPayload/ExternalPayload/ApplicationPayload for that resource
+ * 2. ActionExecuted, once per action, after that action's resources
+ * 3. CommitmentTreeRootAdded, once, after all actions, when the transaction created resources
+ * 4. TransactionExecuted, once at the end
+ *
+ * CommitmentTreeRootAdded also fires outside execute(), at initialization with the empty
+ * tree's root.
  *
  * ActionExecuted is the authoritative source of tags: it carries the consumed nullifiers and
  * created commitments as separate arrays, each paired with its logic reference. TransactionExecuted
@@ -153,7 +157,9 @@ indexer.onEvent(
   async ({ event, context }) => {
     const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
     const txHash = event.transaction.hash;
-    // Use evmTxId + actionTreeRoot for unique action ID since multiple actions can be in one tx
+    // Multiple actions can share one EVM transaction, so the action tree root separates them.
+    // Two actions of one transaction can only collide here if both consume nothing; otherwise
+    // the repeated nullifier reverts the transaction on-chain.
     const actionId = `${evmTxId}_${event.params.actionTreeRoot}`;
 
     const nullifiers = event.params.nullifiers;
@@ -222,8 +228,8 @@ indexer.onEvent(
 
     context.Action.set(actionEntity);
 
-    // The canonical tag order is the action tree leaf order: consumed nullifiers followed by
-    // created commitments. Tag.index and Resource.index both follow it.
+    // ActionExecuted lists the consumed nullifiers and then the created commitments, and that
+    // array order is the canonical tag order. Tag.index and Resource.index both follow it.
     const orderedTags = [
       ...nullifiers.map((tagHash, i) => ({
         tagHash,
@@ -247,8 +253,8 @@ indexer.onEvent(
       const resourceId = createResourceId(actionId, index);
       const existingTag = existingTags[index];
 
-      // A payload event may already have created this tag with placeholder values; the event's
-      // index, side and logic reference are authoritative.
+      // A payload event may already have created this tag with placeholder values. The side and
+      // logic reference come from ActionExecuted; the index is this loop's position within it.
       context.Tag.set({
         ...(existingTag ?? {
           // indexer metadata
@@ -340,9 +346,10 @@ indexer.onEvent(
 /**
  * Writes Payload entities for the external payloads that never produce an event.
  *
- * The protocol adapter only emits payload events for blobs marked `Never`; an `Immediately` blob
- * is consumed for its forwarder call and then dropped. Taking those from calldata keeps the
- * external-call record complete without duplicating the ones ExternalPayload already covers.
+ * Every external blob drives a forwarder call whatever its deletion criterion, but
+ * _emitAppDataBlobs emits a payload event only for the ones marked `Never`. Taking the
+ * `Immediately` ones from calldata keeps the external-call record complete without duplicating
+ * what ExternalPayload already covers.
  */
 function writeImmediateExternalPayloads(
   context: EvmOnEventContext,

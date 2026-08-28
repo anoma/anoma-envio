@@ -28,8 +28,9 @@ export function createTransactionId(chainId: number, txHash: string, logIndex: n
 }
 
 /**
- * Creates a tag identifier from chain and tag hash.
- * Tag hashes are globally unique (cryptographic commitments/nullifiers).
+ * Creates a tag identifier from chain and tag hash. The chain prefix keeps one tag separate
+ * across chains. Within a chain the adapter reverts on a repeated nullifier, while commitment
+ * uniqueness rests on the compliance circuit rather than on any contract check.
  */
 export function createTagId(chainId: number, tagHash: string): string {
   return `${chainId}_${tagHash}`;
