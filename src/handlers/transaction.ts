@@ -30,7 +30,13 @@ import type {
 } from "../types/index.js";
 import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
-import { createEvmTxId, createResourceId, createTagId, createTransactionId } from "./ids.js";
+import {
+  createActionId,
+  createEvmTxId,
+  createResourceId,
+  createTagId,
+  createTransactionId,
+} from "./ids.js";
 import { loadStats, writeStats } from "./stats.js";
 
 // Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
@@ -157,10 +163,7 @@ indexer.onEvent(
   async ({ event, context }) => {
     const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
     const txHash = event.transaction.hash;
-    // Multiple actions can share one EVM transaction, so the action tree root separates them.
-    // Two actions of one transaction can only collide here if both consume nothing; otherwise
-    // the repeated nullifier reverts the transaction on-chain.
-    const actionId = `${evmTxId}_${event.params.actionTreeRoot}`;
+    const actionId = createActionId(evmTxId, event.params.actionTreeRoot);
 
     const nullifiers = event.params.nullifiers;
     const commitments = event.params.commitments;
