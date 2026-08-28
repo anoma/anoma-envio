@@ -95,6 +95,7 @@ indexer.onEvent(
       return;
     }
 
+    // No pa-evm fields here: this is the enclosing EVM transaction, not the AP transaction.
     const evmTxEntity: EVMTransaction = {
       id: evmTxId,
       txHash: txHash,
@@ -108,16 +109,19 @@ indexer.onEvent(
     context.EVMTransaction.set(evmTxEntity);
 
     const txEntity: Transaction = {
+      // indexer metadata
       id: txId,
       logIndex: event.logIndex,
       contractAddress: event.srcAddress,
       blockNumber: BigInt(event.block.number),
       timestamp: BigInt(event.block.timestamp),
       chainId: BigInt(event.chainId),
+      evmTransaction_id: evmTxId,
+      // pa-evm event params
       transactionId: event.params.transactionId,
+      // pa-evm execute() calldata
       deltaProof: decoded?.deltaProof,
       aggregationProof: decoded?.aggregationProof,
-      evmTransaction_id: evmTxId,
     };
 
     context.Transaction.set(txEntity);
@@ -196,20 +200,24 @@ indexer.onEvent(
 
     // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
     const actionEntity: Action = {
+      // indexer metadata
       id: actionId,
       index: actionIndex,
       logIndex: event.logIndex,
-      actionTreeRoot: event.params.actionTreeRoot,
-      actionTagCount: nullifiers.length + commitments.length,
-      consumedCount: nullifiers.length,
-      createdCount: commitments.length,
       blockNumber: BigInt(event.block.number),
       chainId: BigInt(event.chainId),
       timestamp: BigInt(event.block.timestamp),
-      unitDeltaX: decodedAction ? decodedAction.unitDelta.x.toString() : undefined,
-      unitDeltaY: decodedAction ? decodedAction.unitDelta.y.toString() : undefined,
       evmTxId: evmTxId,
       transaction_id: evmTxId,
+      // pa-evm event params
+      actionTreeRoot: event.params.actionTreeRoot,
+      // counted from the event's nullifier and commitment arrays
+      actionTagCount: nullifiers.length + commitments.length,
+      consumedCount: nullifiers.length,
+      createdCount: commitments.length,
+      // pa-evm execute() calldata
+      unitDeltaX: decodedAction ? decodedAction.unitDelta.x.toString() : undefined,
+      unitDeltaY: decodedAction ? decodedAction.unitDelta.y.toString() : undefined,
     };
 
     context.Action.set(actionEntity);
@@ -243,34 +251,41 @@ indexer.onEvent(
       // index, side and logic reference are authoritative.
       context.Tag.set({
         ...(existingTag ?? {
+          // indexer metadata
           id: tagId,
-          tagHash: tagHash,
           blockNumber: BigInt(event.block.number),
           timestamp: BigInt(event.block.timestamp),
           chainId: BigInt(event.chainId),
           transaction_id: evmTxId,
+          // pa-evm event params
+          tagHash: tagHash,
         }),
+        // indexer metadata
         index: index,
         actionLogIndex: event.logIndex,
+        resource_id: resourceId,
+        // pa-evm event params; isConsumed is the array the tag came from
         isConsumed: isConsumed,
         logicRef: logicRef,
-        resource_id: resourceId,
       });
       const resourceEntity: Resource = {
+        // indexer metadata
         id: resourceId,
         index: index,
         timestamp: BigInt(event.block.timestamp),
         chainId: BigInt(event.chainId),
+        action_id: actionId,
+        tag_id: tagId,
+        // pa-evm event params; isConsumed is the array the tag came from
         tagHash: tagHash,
         logicRef: logicRef,
         isConsumed: isConsumed,
+        // pa-evm execute() calldata
         commitmentTreeRoot: commitmentTreeRoot,
         resourcePayloadCount: appData?.resourcePayload.length,
         discoveryPayloadCount: appData?.discoveryPayload.length,
         externalPayloadCount: appData?.externalPayload.length,
         applicationPayloadCount: appData?.applicationPayload.length,
-        action_id: actionId,
-        tag_id: tagId,
       };
 
       context.Resource.set(resourceEntity);
@@ -285,7 +300,9 @@ indexer.onEvent(
     for (let i = 0; i < uniqueLogicRefs.length; i++) {
       if (!existingLogicRefs[i]) {
         context.LogicRef.set({
+          // pa-evm event params
           id: uniqueLogicRefs[i],
+          // indexer metadata
           firstSeenBlock: BigInt(event.block.number),
           firstSeenTimestamp: BigInt(event.block.timestamp),
           firstSeenChainId: BigInt(event.chainId),
@@ -295,12 +312,14 @@ indexer.onEvent(
       }
       if (!existingChainLogicRefs[i]) {
         context.ChainLogicRef.set({
+          // indexer metadata
           id: chainLogicRefIds[i],
           chainId: BigInt(event.chainId),
-          logicRef: uniqueLogicRefs[i],
           firstSeenBlock: BigInt(event.block.number),
           firstSeenTimestamp: BigInt(event.block.timestamp),
           firstSeenTxHash: txHash,
+          // pa-evm event params
+          logicRef: uniqueLogicRefs[i],
         });
         newChainLogicCount++;
       }
@@ -339,13 +358,15 @@ function writeImmediateExternalPayloads(
     }
 
     context.Payload.set({
+      // indexer metadata
       id: `${resourceId}_externalCall_${index}`,
       category: "externalCall",
+      tag_id: tagId,
+      // pa-evm execute() calldata (these blobs never get their own event)
       tagHash: tagHash,
       index: index,
       blob: blob.blob,
       deletionCriterion: "immediately",
-      tag_id: tagId,
     });
   }
 }

@@ -10,13 +10,15 @@ indexer.onEvent(
     const eventId = createEventId(event);
 
     const entity: CommitmentTreeRoot = {
+      // indexer metadata
       id: eventId,
-      root: event.params.root,
       blockNumber: BigInt(event.block.number),
       logIndex: event.logIndex,
       txHash: event.transaction.hash,
       timestamp: BigInt(event.block.timestamp),
       chainId: BigInt(event.chainId),
+      // pa-evm event params
+      root: event.params.root,
     };
 
     context.CommitmentTreeRoot.set(entity);
@@ -35,13 +37,15 @@ indexer.onEvent(
     const eventId = createEventId(event);
 
     const entity: KindTableCommitment = {
+      // indexer metadata
       id: eventId,
-      kindTableCommitment: event.params.kindTableCommitment,
       blockNumber: BigInt(event.block.number),
       logIndex: event.logIndex,
       txHash: event.transaction.hash,
       timestamp: BigInt(event.block.timestamp),
       chainId: BigInt(event.chainId),
+      // pa-evm event params
+      kindTableCommitment: event.params.kindTableCommitment,
     };
 
     context.KindTableCommitment.set(entity);
