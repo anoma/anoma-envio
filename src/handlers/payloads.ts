@@ -2,7 +2,6 @@ import { indexer } from "envio";
 import type { Payload, Tag } from "envio";
 
 import { createEventId, createEvmTxId, createTagId } from "./ids.js";
-import { getPendingEntities } from "./pending.js";
 import { incrementAllStats } from "./stats.js";
 
 // ============================================
@@ -43,9 +42,6 @@ indexer.onEvent(
         resource_id: undefined,
       };
       context.Tag.set(tagEntity);
-      if (!context.isPreload) {
-        getPendingEntities(evmTxId).tags.add(tagId);
-      }
     }
   }
 );

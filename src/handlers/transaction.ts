@@ -23,7 +23,6 @@ import type { Action as DecodedAction, AppData } from "../types/index.js";
 import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
 import { createEvmTxId, createResourceId, createTagId, createTransactionId } from "./ids.js";
-import { pendingEntities, getPendingEntities } from "./pending.js";
 import { incrementAllStats } from "./stats.js";
 
 // ============================================
@@ -127,30 +126,21 @@ indexer.onEvent(
 
     context.Transaction.set(txEntity);
 
-    // Relink the actions and tags written by earlier handlers so their transaction_id points to
-    // this Transaction instead of the temporary evmTxId. The guard (=== evmTxId) makes a preload
-    // double-run idempotent: already-linked entities are not re-linked to the wrong txId.
-    const pending = pendingEntities.get(evmTxId);
-    if (pending) {
-      const [actions, tags] = await Promise.all([
-        Promise.all([...pending.actions.keys()].map((id) => context.Action.get(id))),
-        Promise.all([...pending.tags].map((id) => context.Tag.get(id))),
-      ]);
+    // Relink the actions and tags earlier handlers wrote against the correlation key. Rows from
+    // this batch come from the in-memory store and older ones from the database, so a restart
+    // between an action and its transaction cannot strand them.
+    const [actions, tags] = await Promise.all([
+      context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
+      context.Tag.getWhere({ transaction_id: { _eq: evmTxId } }),
+    ]);
 
-      for (const action of actions) {
-        if (action && action.transaction_id === evmTxId) {
-          context.Action.set({ ...action, transaction_id: txId });
-        }
+    for (const action of actions) {
+      if (action.transaction_id === evmTxId) {
+        context.Action.set({ ...action, transaction_id: txId });
       }
-      for (const tag of tags) {
-        if (tag && tag.transaction_id === evmTxId) {
-          context.Tag.set({ ...tag, transaction_id: txId });
-        }
-      }
-
-      if (!context.isPreload) {
-        pendingEntities.delete(evmTxId);
-      }
+    }
+    for (const tag of tags) {
+      context.Tag.set({ ...tag, transaction_id: txId });
     }
 
     await incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
@@ -189,21 +179,25 @@ indexer.onEvent(
     // Try to decode calldata to get action details
     const decoded = getDecodedTransaction(txHash, event.transaction.input);
 
-    // Map this ActionExecuted to its position among the EVM tx's actions. The contract emits
-    // ActionExecuted once per action in calldata order, so the k-th distinct ActionExecuted
-    // corresponds to decoded.actions[k]. The index is memoised per actionId so a preload
-    // double-run is idempotent, and TransactionExecuted still relinks by iterating the keys.
-    const pending = getPendingEntities(evmTxId);
-    let actionIndex = pending.actions.get(actionId);
-    if (actionIndex === undefined) {
-      actionIndex = pending.actions.size;
-      // The preload pass runs in parallel, so two ActionExecuted of the same transaction can
-      // reach this concurrently and claim the same index. Only the sequential pass records it;
-      // a provisional index in preload at worst warms a cache entry that is not needed.
-      if (!context.isPreload) {
-        pending.actions.set(actionId, actionIndex);
-      }
-    }
+    // Tag ids and logic refs come from the event alone, so they load in one round together with
+    // the actions of this transaction still waiting for their TransactionExecuted.
+    const tagIds = [...nullifiers, ...commitments].map((tagHash) =>
+      createTagId(event.chainId, tagHash)
+    );
+    const uniqueLogicRefs = [...new Set([...consumedLogicRefs, ...createdLogicRefs])];
+    const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
+    const [pendingActions, existingTags, existingLogicRefs, existingChainLogicRefs] =
+      await Promise.all([
+        context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
+        Promise.all(tagIds.map((id) => context.Tag.get(id))),
+        Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
+        Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
+      ]);
+
+    // The contract emits ActionExecuted once per action in calldata order and events are
+    // processed in that order, so this action's position is the number of actions of the same
+    // transaction already written and not yet relinked.
+    const actionIndex = pendingActions.filter((a) => a.transaction_id === evmTxId).length;
 
     if (decoded && actionIndex >= decoded.actions.length) {
       console.warn(
@@ -253,16 +247,6 @@ indexer.onEvent(
       })),
     ];
 
-    // Batch-fetch existing tags and logic-ref trackers (eliminates N+1 reads)
-    const tagIds = orderedTags.map((t) => createTagId(event.chainId, t.tagHash));
-    const uniqueLogicRefs = [...new Set(orderedTags.map((t) => t.logicRef))];
-    const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
-    const [existingTags, existingLogicRefs, existingChainLogicRefs] = await Promise.all([
-      Promise.all(tagIds.map((id) => context.Tag.get(id))),
-      Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
-      Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
-    ]);
-
     for (let index = 0; index < orderedTags.length; index++) {
       const { tagHash, logicRef, isConsumed, appData, commitmentTreeRoot } = orderedTags[index];
       const tagId = tagIds[index];
@@ -286,10 +270,6 @@ indexer.onEvent(
         logicRef: logicRef,
         resource_id: resourceId,
       });
-      if (!context.isPreload) {
-        pending.tags.add(tagId);
-      }
-
       const resourceEntity: Resource = {
         id: resourceId,
         index: index,
