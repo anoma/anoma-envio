@@ -26,9 +26,14 @@ Currently there are the following deployments:
 
   Staging deployment: whatever is currently on `main`.
 
-- **anoma-envio-dev-v2**
+- **anoma-envio-v2**
 
-  Development deployment of the V2 indexer.
+  Deployment of the V2 indexer, tracking `pa-v2`.
+
+- **anoma-envio-v2-dev**
+
+  Development deployment of the V2 indexer, tracking `pa-v2-next`, the
+  integration branch that feeds `pa-v2`.
 
 Envio watches this repository and redeploys on new commits to the branch each
 project is pointed at. Regenerate this table with
@@ -41,7 +46,8 @@ project is pointed at. Regenerate this table with
 | `anoma-envio-explorer-prod` | `main`                    | `config.yaml`      | off        | development |
 | `anoma-envio-explorer-dev`  | `next`                    | `config.yaml`      | off        | development |
 | `anoma-envio-stag`          | `main`                    | `config.yaml`      | **on**     | development |
-| `anoma-envio-dev-v2`        | `heueristik/pa-v2-events` | `config.yaml`      | **on**     | development |
+| `anoma-envio-v2`            | `pa-v2`                   | `config.yaml`      | off        | development |
+| `anoma-envio-v2-dev`        | `pa-v2-next`              | `config.yaml`      | off        | development |
 
 Two things in that table are easy to miss. Production is the only project that
 does not read `config.yaml`; it reads `config.prod.yaml`, so a change to the
@@ -97,8 +103,8 @@ URL does not have to change. For a free deployment you have to update the URL
 each time, because it changes per deployment.
 
 Note that the identifier in the URL is not the Git commit hash, even though it
-looks like one. `anoma-envio-dev-v2` is deployed at commit `28dd152` and serves
-from `.../b36db80/v1/graphql`; none of the six deployments has a URL segment
+looks like one. `anoma-envio-v2-dev` is deployed at commit `969117c` and serves
+from `.../d40a7b7/v1/graphql`; none of the eight deployments has a URL segment
 matching its commit. You cannot construct the endpoint from a commit; you have
 to ask for it.
 
