@@ -25,7 +25,13 @@
  * All of these are declared in PA-EVM interfaces/IProtocolAdapter.sol.
  */
 
-import { decodeFunctionData, toFunctionSelector, type Hex, type Abi } from "viem";
+import {
+  decodeFunctionData,
+  toFunctionSelector,
+  type Abi,
+  type DecodeFunctionDataReturnType,
+  type Hex,
+} from "viem";
 import type {
   Transaction,
   Action,
@@ -36,27 +42,28 @@ import type {
 } from "../types/index.js";
 import { DeletionCriterion } from "../types/index.js";
 
+const EXPIRABLE_BLOB_COMPONENTS = [
+  { name: "deletionCriterion", type: "uint8" },
+  { name: "blob", type: "bytes" },
+] as const;
+
 /** The four payload slots of AppData, each a list of `(uint8 deletionCriterion, bytes blob)`. */
 const APP_DATA_COMPONENT = {
   name: "appData",
   type: "tuple",
-  components: (
-    ["resourcePayload", "discoveryPayload", "externalPayload", "applicationPayload"] as const
-  ).map((name) => ({
-    name,
-    type: "tuple[]",
-    components: [
-      { name: "deletionCriterion", type: "uint8" },
-      { name: "blob", type: "bytes" },
-    ],
-  })),
+  components: [
+    { name: "resourcePayload", type: "tuple[]", components: EXPIRABLE_BLOB_COMPONENTS },
+    { name: "discoveryPayload", type: "tuple[]", components: EXPIRABLE_BLOB_COMPONENTS },
+    { name: "externalPayload", type: "tuple[]", components: EXPIRABLE_BLOB_COMPONENTS },
+    { name: "applicationPayload", type: "tuple[]", components: EXPIRABLE_BLOB_COMPONENTS },
+  ],
 } as const;
 
 // ABI for the execute function with nested structs. The canonical signature is
 // execute((((bytes32,bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]))[],
 //          (bytes32,bytes32,((uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[],(uint8,bytes)[]))[],
 //          (uint256,uint256),bytes32)[],bytes,bytes))
-export const EXECUTE_ABI: Abi = [
+export const EXECUTE_ABI = [
   {
     name: "execute",
     type: "function",
@@ -107,54 +114,20 @@ export const EXECUTE_ABI: Abi = [
     ],
     outputs: [],
   },
-];
+] as const satisfies Abi;
 
 /**
  * Function selector for `execute`, derived from EXECUTE_ABI so it can never drift from the shape
  * the decoder actually feeds to viem.
  */
-export const EXECUTE_SELECTOR: Hex = toFunctionSelector(
-  EXECUTE_ABI[0] as Parameters<typeof toFunctionSelector>[0]
-);
+export const EXECUTE_SELECTOR: Hex = toFunctionSelector(EXECUTE_ABI[0]);
 
-// Raw decoded types from viem
-interface RawExpirableBlob {
-  deletionCriterion: number;
-  blob: Hex;
-}
-
-interface RawAppData {
-  resourcePayload: readonly RawExpirableBlob[];
-  discoveryPayload: readonly RawExpirableBlob[];
-  externalPayload: readonly RawExpirableBlob[];
-  applicationPayload: readonly RawExpirableBlob[];
-}
-
-interface RawConsumed {
-  nullifier: Hex;
-  logicRef: Hex;
-  commitmentTreeRoot: Hex;
-  appData: RawAppData;
-}
-
-interface RawCreated {
-  commitment: Hex;
-  logicRef: Hex;
-  appData: RawAppData;
-}
-
-interface RawAction {
-  consumed: readonly RawConsumed[];
-  created: readonly RawCreated[];
-  unitDelta: { x: bigint; y: bigint };
-  actionTreeRoot: Hex;
-}
-
-interface RawTransaction {
-  actions: readonly RawAction[];
-  deltaProof: Hex;
-  aggregationProof: Hex;
-}
+type RawTransaction = DecodeFunctionDataReturnType<typeof EXECUTE_ABI>["args"][0];
+type RawAction = RawTransaction["actions"][number];
+type RawConsumed = RawAction["consumed"][number];
+type RawCreated = RawAction["created"][number];
+type RawAppData = RawConsumed["appData"];
+type RawExpirableBlob = RawAppData["resourcePayload"][number];
 
 export interface DecodedTransactionResult {
   transaction: Transaction;
@@ -168,9 +141,6 @@ export interface DecodedTransactionError {
 
 export type DecodedTransactionResponse = DecodedTransactionResult | DecodedTransactionError;
 
-/**
- * Convert raw expirable blob from ABI decoding to typed format
- */
 function convertExpirableBlob(raw: RawExpirableBlob): ExpirableBlob {
   return {
     deletionCriterion:
@@ -179,9 +149,6 @@ function convertExpirableBlob(raw: RawExpirableBlob): ExpirableBlob {
   };
 }
 
-/**
- * Convert raw app data from ABI decoding to typed format
- */
 function convertAppData(raw: RawAppData): AppData {
   return {
     resourcePayload: raw.resourcePayload.map(convertExpirableBlob),
@@ -191,9 +158,6 @@ function convertAppData(raw: RawAppData): AppData {
   };
 }
 
-/**
- * Convert the public data of a raw consumed resource to typed format
- */
 function convertConsumed(raw: RawConsumed): Consumed {
   return {
     nullifier: raw.nullifier,
@@ -203,9 +167,6 @@ function convertConsumed(raw: RawConsumed): Consumed {
   };
 }
 
-/**
- * Convert the public data of a raw created resource to typed format
- */
 function convertCreated(raw: RawCreated): Created {
   return {
     commitment: raw.commitment,
@@ -214,9 +175,6 @@ function convertCreated(raw: RawCreated): Created {
   };
 }
 
-/**
- * Convert raw action from ABI decoding to typed format
- */
 function convertAction(raw: RawAction): Action {
   return {
     consumed: raw.consumed.map(convertConsumed),
@@ -226,9 +184,6 @@ function convertAction(raw: RawAction): Action {
   };
 }
 
-/**
- * Convert raw transaction from ABI decoding to typed format
- */
 function convertTransaction(raw: RawTransaction): Transaction {
   return {
     actions: raw.actions.map(convertAction),
@@ -245,14 +200,12 @@ function convertTransaction(raw: RawTransaction): Transaction {
  */
 export function decodeExecuteCalldata(input: string): DecodedTransactionResponse {
   try {
-    // Validate input
     if (!input || input === "0x") {
       return { success: false, error: "Empty calldata" };
     }
 
     const hexInput: Hex = input.startsWith("0x") ? (input as Hex) : `0x${input}`;
 
-    // Check function selector
     const selector = hexInput.slice(0, 10).toLowerCase();
     if (selector !== EXECUTE_SELECTOR) {
       return {
@@ -261,29 +214,8 @@ export function decodeExecuteCalldata(input: string): DecodedTransactionResponse
       };
     }
 
-    // Decode the function data
-    const decoded = decodeFunctionData({
-      abi: EXECUTE_ABI,
-      data: hexInput,
-    });
-
-    if (decoded.functionName !== "execute") {
-      return {
-        success: false,
-        error: `Unexpected function name: ${decoded.functionName}`,
-      };
-    }
-
-    // Extract the transaction argument (first and only argument)
-    if (!decoded.args || decoded.args.length === 0) {
-      return { success: false, error: "No arguments in decoded calldata" };
-    }
-    const rawTransaction = decoded.args[0] as RawTransaction;
-
-    // Convert to typed format
-    const transaction = convertTransaction(rawTransaction);
-
-    return { success: true, transaction };
+    const decoded = decodeFunctionData({ abi: EXECUTE_ABI, data: hexInput });
+    return { success: true, transaction: convertTransaction(decoded.args[0]) };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: `Failed to decode calldata: ${message}` };
