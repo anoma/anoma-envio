@@ -52,3 +52,30 @@ export function createTagId(chainId: number, tagHash: string): string {
 export function createResourceId(actionId: string, index: number): string {
   return `${actionId}_resource_${index}`;
 }
+
+/**
+ * Creates the identifier of an external payload taken from calldata. Every other Payload comes
+ * from its own event and is keyed by `createEventId`; these blobs are emitted by no event, so
+ * they key off the resource that carries them and their position in its external payload array.
+ */
+export function createExternalPayloadId(resourceId: string, index: number): string {
+  return `${resourceId}_externalCall_${index}`;
+}
+
+/**
+ * Creates a per-chain logic reference identifier. The same logic can appear on several chains;
+ * LogicRef counts it once globally, ChainLogicRef once per chain.
+ */
+export function createChainLogicRefId(chainId: number, logicRef: string): string {
+  return `${chainId}-${logicRef}`;
+}
+
+/** Creates the ChainStats identifier for one chain. */
+export function createChainStatsId(chainId: number): string {
+  return String(chainId);
+}
+
+/** Creates the ChainDailyStats identifier from a chain and a UTC day key. */
+export function createChainDailyStatsId(chainId: number, dateKey: string): string {
+  return `${chainId}-${dateKey}`;
+}

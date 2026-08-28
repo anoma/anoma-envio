@@ -34,7 +34,9 @@ import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE, PENDING_TRANSACTION_ID } from "../constants.js";
 import {
   createActionId,
+  createChainLogicRefId,
   createEvmTxId,
+  createExternalPayloadId,
   createResourceId,
   createTagId,
   createTransactionId,
@@ -216,7 +218,7 @@ indexer.onEvent(
     // the actions of this transaction still waiting for their TransactionExecuted.
     const tagIds = [...nullifiers, ...commitments].map((tagHash) => createTagId(chainId, tagHash));
     const uniqueLogicRefs = [...new Set([...consumedLogicRefs, ...createdLogicRefs])];
-    const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${chainId}-${ref}`);
+    const chainLogicRefIds = uniqueLogicRefs.map((ref) => createChainLogicRefId(chainId, ref));
     const [pendingActions, existingTags, existingLogicRefs, existingChainLogicRefs, statsRows] =
       await Promise.all([
         context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
@@ -413,7 +415,7 @@ function writeImmediateExternalPayloads(
 
     context.Payload.set({
       // indexer metadata
-      id: `${resourceId}_externalCall_${index}`,
+      id: createExternalPayloadId(resourceId, index),
       category: "externalCall",
       tag_id: tagId,
       // pa-evm execute() calldata (these blobs never get their own event)
