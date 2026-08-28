@@ -19,7 +19,11 @@ import type { EvmOnEventContext, EVMTransaction, Transaction, Action, Resource }
 
 import { decodeExecuteCalldata, isExecuteCalldata } from "../decoders/ActionDecoder.js";
 import { DeletionCriterion } from "../types/index.js";
-import type { Action as DecodedAction, AppData } from "../types/index.js";
+import type {
+  Action as DecodedAction,
+  AppData,
+  Transaction as DecodedTransaction,
+} from "../types/index.js";
 import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
 import { createEvmTxId, createResourceId, createTagId, createTransactionId } from "./ids.js";
@@ -28,24 +32,22 @@ import { incrementAllStats } from "./stats.js";
 // ============================================
 // Calldata Decoding Cache
 // ============================================
-// Cache decoded calldata by txHash to avoid re-decoding for each ActionExecuted event
-// within the same EVM transaction. Uses BoundedCache to prevent unbounded memory growth.
-type DecodedCalldata = {
-  actions: DecodedAction[];
-  deltaProof: string;
-  aggregationProof: string;
-};
-
-const decodedCalldataCache = new BoundedCache<string, DecodedCalldata>(
+// Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
+// within it. Uses BoundedCache to prevent unbounded memory growth.
+const decodedCalldataCache = new BoundedCache<string, DecodedTransaction>(
   DECODED_CALLDATA_CACHE_MAX_SIZE
 );
 
 /**
  * Get decoded transaction data from cache or decode from calldata.
  */
-function getDecodedTransaction(txHash: string, input: string | undefined): DecodedCalldata | null {
+function getDecodedTransaction(
+  context: EvmOnEventContext,
+  evmTxId: string,
+  input: string | undefined
+): DecodedTransaction | null {
   // Check cache first
-  const cached = decodedCalldataCache.get(txHash);
+  const cached = decodedCalldataCache.get(evmTxId);
   if (cached) {
     return cached;
   }
@@ -57,26 +59,19 @@ function getDecodedTransaction(txHash: string, input: string | undefined): Decod
 
   const result = decodeExecuteCalldata(input);
   if (!result.success) {
-    console.log(`Failed to decode calldata for tx ${txHash}: ${result.error}`);
+    context.log.warn(`Failed to decode calldata for ${evmTxId}: ${result.error}`);
     return null;
   }
 
-  // Cache the result
-  const decoded = {
-    actions: result.transaction.actions,
-    deltaProof: result.transaction.deltaProof,
-    aggregationProof: result.transaction.aggregationProof,
-  };
-  decodedCalldataCache.set(txHash, decoded);
-
-  return decoded;
+  decodedCalldataCache.set(evmTxId, result.transaction);
+  return result.transaction;
 }
 
 /**
  * Clear cache entry after transaction is fully processed.
  */
-function clearDecodedCache(txHash: string): void {
-  decodedCalldataCache.delete(txHash);
+function clearDecodedCache(evmTxId: string): void {
+  decodedCalldataCache.delete(evmTxId);
 }
 
 // ============================================
@@ -95,7 +90,7 @@ indexer.onEvent(
 
     // Try to decode calldata for proofs
     // Note: event.transaction.input is available because we added "input" to field_selection
-    const decoded = getDecodedTransaction(txHash, event.transaction.input);
+    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
     // Create EVMTransaction entity (the carrier/wrapper, shared by all AP txs in this EVM tx)
     const evmTxEntity: EVMTransaction = {
@@ -150,7 +145,7 @@ indexer.onEvent(
     // Clear the cache after processing is complete. Not during preload: the sequential pass
     // still has to decode this transaction.
     if (!context.isPreload) {
-      clearDecodedCache(txHash);
+      clearDecodedCache(evmTxId);
     }
   }
 );
@@ -177,7 +172,7 @@ indexer.onEvent(
     const createdLogicRefs = event.params.createdLogicRefs;
 
     // Try to decode calldata to get action details
-    const decoded = getDecodedTransaction(txHash, event.transaction.input);
+    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
     // Tag ids and logic refs come from the event alone, so they load in one round together with
     // the actions of this transaction still waiting for their TransactionExecuted.
@@ -200,7 +195,7 @@ indexer.onEvent(
     const actionIndex = pendingActions.filter((a) => a.transaction_id === evmTxId).length;
 
     if (decoded && actionIndex >= decoded.actions.length) {
-      console.warn(
+      context.log.warn(
         `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
           `(calldata decoded ${decoded.actions.length} action(s)); resource details omitted.`
       );
