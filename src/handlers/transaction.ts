@@ -89,6 +89,10 @@ indexer.onEvent(
     const txId = createTransactionId(event.chainId, event.transaction.hash, event.logIndex);
     const txHash = event.transaction.hash;
 
+    const blockNumber = BigInt(event.block.number);
+    const timestamp = BigInt(event.block.timestamp);
+    const chainId = BigInt(event.chainId);
+
     // Note: event.transaction.input is available because we added "input" to field_selection
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
@@ -109,9 +113,9 @@ indexer.onEvent(
     const evmTxEntity: EVMTransaction = {
       id: evmTxId,
       txHash: txHash,
-      blockNumber: BigInt(event.block.number),
-      timestamp: BigInt(event.block.timestamp),
-      chainId: BigInt(event.chainId),
+      blockNumber: blockNumber,
+      timestamp: timestamp,
+      chainId: chainId,
       from: event.transaction.from,
       value: event.transaction.value,
     };
@@ -123,9 +127,9 @@ indexer.onEvent(
       id: txId,
       logIndex: event.logIndex,
       contractAddress: event.srcAddress,
-      blockNumber: BigInt(event.block.number),
-      timestamp: BigInt(event.block.timestamp),
-      chainId: BigInt(event.chainId),
+      blockNumber: blockNumber,
+      timestamp: timestamp,
+      chainId: chainId,
       evmTransaction_id: evmTxId,
       // pa-evm event params
       transactionId: event.params.transactionId,
@@ -161,14 +165,16 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ActionExecuted" },
   async ({ event, context }) => {
+    const { actionTreeRoot, nullifiers, consumedLogicRefs, commitments, createdLogicRefs } =
+      event.params;
+
     const txHash = event.transaction.hash;
     const evmTxId = createEvmTxId(event.chainId, txHash);
-    const actionId = createActionId(evmTxId, event.params.actionTreeRoot);
+    const actionId = createActionId(evmTxId, actionTreeRoot);
 
-    const nullifiers = event.params.nullifiers;
-    const consumedLogicRefs = event.params.consumedLogicRefs;
-    const commitments = event.params.commitments;
-    const createdLogicRefs = event.params.createdLogicRefs;
+    const blockNumber = BigInt(event.block.number);
+    const timestamp = BigInt(event.block.timestamp);
+    const chainId = BigInt(event.chainId);
 
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
@@ -204,12 +210,12 @@ indexer.onEvent(
     const positional =
       decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
     const decodedAction: DecodedAction | null =
-      positional?.actionTreeRoot === event.params.actionTreeRoot ? positional : null;
+      positional?.actionTreeRoot === actionTreeRoot ? positional : null;
 
     if (decoded && !decodedAction) {
       context.log.warn(
         `ActionExecuted #${actionIndex} for tx ${txHash} has no decoded action with root ` +
-          `${event.params.actionTreeRoot} at that position (calldata decoded ` +
+          `${actionTreeRoot} at that position (calldata decoded ` +
           `${decoded.actions.length} action(s)); resource details omitted.`
       );
     }
@@ -220,13 +226,13 @@ indexer.onEvent(
       id: actionId,
       index: actionIndex,
       logIndex: event.logIndex,
-      blockNumber: BigInt(event.block.number),
-      chainId: BigInt(event.chainId),
-      timestamp: BigInt(event.block.timestamp),
+      blockNumber: blockNumber,
+      chainId: chainId,
+      timestamp: timestamp,
       evmTxId: evmTxId,
       transaction_id: evmTxId,
       // pa-evm event params
-      actionTreeRoot: event.params.actionTreeRoot,
+      actionTreeRoot: actionTreeRoot,
       // counted from the event's nullifier and commitment arrays
       actionTagCount: nullifiers.length + commitments.length,
       consumedCount: nullifiers.length,
@@ -269,9 +275,9 @@ indexer.onEvent(
         ...(existingTag ?? {
           // indexer metadata
           id: tagId,
-          blockNumber: BigInt(event.block.number),
-          timestamp: BigInt(event.block.timestamp),
-          chainId: BigInt(event.chainId),
+          blockNumber: blockNumber,
+          timestamp: timestamp,
+          chainId: chainId,
           transaction_id: evmTxId,
           // pa-evm event params
           tagHash: tagHash,
@@ -288,8 +294,8 @@ indexer.onEvent(
         // indexer metadata
         id: resourceId,
         index: index,
-        timestamp: BigInt(event.block.timestamp),
-        chainId: BigInt(event.chainId),
+        timestamp: timestamp,
+        chainId: chainId,
         action_id: actionId,
         tag_id: tagId,
         // pa-evm event params; isConsumed is the array the tag came from
@@ -319,9 +325,9 @@ indexer.onEvent(
           // pa-evm event params
           id: uniqueLogicRefs[i],
           // indexer metadata
-          firstSeenBlock: BigInt(event.block.number),
-          firstSeenTimestamp: BigInt(event.block.timestamp),
-          firstSeenChainId: BigInt(event.chainId),
+          firstSeenBlock: blockNumber,
+          firstSeenTimestamp: timestamp,
+          firstSeenChainId: chainId,
           firstSeenTxHash: txHash,
         });
         newLogicCount++;
@@ -330,9 +336,9 @@ indexer.onEvent(
         context.ChainLogicRef.set({
           // indexer metadata
           id: chainLogicRefIds[i],
-          chainId: BigInt(event.chainId),
-          firstSeenBlock: BigInt(event.block.number),
-          firstSeenTimestamp: BigInt(event.block.timestamp),
+          chainId: chainId,
+          firstSeenBlock: blockNumber,
+          firstSeenTimestamp: timestamp,
           firstSeenTxHash: txHash,
           // pa-evm event params
           logicRef: uniqueLogicRefs[i],
