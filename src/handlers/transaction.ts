@@ -29,9 +29,6 @@ import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
 import { createEvmTxId, createResourceId, createTagId, createTransactionId } from "./ids.js";
 import { incrementAllStats } from "./stats.js";
 
-// ============================================
-// Calldata Decoding Cache
-// ============================================
 // Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
 // within it. Uses BoundedCache to prevent unbounded memory growth.
 const decodedCalldataCache = new BoundedCache<string, DecodedTransaction>(
@@ -46,13 +43,11 @@ function getDecodedTransaction(
   evmTxId: string,
   input: string | undefined
 ): DecodedTransaction | null {
-  // Check cache first
   const cached = decodedCalldataCache.get(evmTxId);
   if (cached) {
     return cached;
   }
 
-  // Try to decode calldata
   if (!input || !isExecuteCalldata(input)) {
     return null;
   }
@@ -74,13 +69,9 @@ function clearDecodedCache(evmTxId: string): void {
   decodedCalldataCache.delete(evmTxId);
 }
 
-// ============================================
-// TransactionExecuted Handler
-// ============================================
 // This event fires LAST in the transaction, after every action and payload event. It carries only
 // the transaction id, so its job is to create the Transaction entity and relink the actions and
 // tags that earlier handlers wrote against the EVM-transaction correlation key.
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "TransactionExecuted" },
   async ({ event, context }) => {
@@ -88,11 +79,9 @@ indexer.onEvent(
     const txId = createTransactionId(event.chainId, event.transaction.hash, event.logIndex);
     const txHash = event.transaction.hash;
 
-    // Try to decode calldata for proofs
     // Note: event.transaction.input is available because we added "input" to field_selection
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
-    // Create EVMTransaction entity (the carrier/wrapper, shared by all AP txs in this EVM tx)
     const evmTxEntity: EVMTransaction = {
       id: evmTxId,
       txHash: txHash,
@@ -105,7 +94,6 @@ indexer.onEvent(
 
     context.EVMTransaction.set(evmTxEntity);
 
-    // Create Transaction entity (Anoma Transaction payload — unique per AP tx)
     const txEntity: Transaction = {
       id: txId,
       logIndex: event.logIndex,
@@ -150,14 +138,10 @@ indexer.onEvent(
   }
 );
 
-// ============================================
-// ActionExecuted Handler
-// ============================================
 // ActionExecuted fires BEFORE TransactionExecuted but AFTER payload events. It is authoritative
 // for which tags the action consumed and created, and for their logic references. Calldata
 // decoding adds what the event cannot carry: the action's unit delta, the commitment tree root each
 // consumed resource was proven against, and the app data payload counts.
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ActionExecuted" },
   async ({ event, context }) => {
@@ -171,7 +155,6 @@ indexer.onEvent(
     const consumedLogicRefs = event.params.consumedLogicRefs;
     const createdLogicRefs = event.params.createdLogicRefs;
 
-    // Try to decode calldata to get action details
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
 
     // Tag ids and logic refs come from the event alone, so they load in one round together with
@@ -289,7 +272,6 @@ indexer.onEvent(
       }
     }
 
-    // Track distinct logic references — global and per-chain
     let newLogicCount = 0;
     let newChainLogicCount = 0;
     for (let i = 0; i < uniqueLogicRefs.length; i++) {

@@ -4,19 +4,13 @@ import type { Payload, Tag } from "envio";
 import { createEventId, createEvmTxId, createTagId } from "./ids.js";
 import { incrementAllStats } from "./stats.js";
 
-// ============================================
-// ResourcePayload Handler
-// ============================================
 // ResourcePayload fires BEFORE ActionExecuted.
-// Creates a Payload entity with category "resource" and creates the Tag entity if it is new.
-
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ResourcePayload" },
   async ({ event, context }) => {
     const tagId = createTagId(event.chainId, event.params.tag);
     const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
 
-    // Create Payload entity with category "resource" (unified with other payload types)
     const payloadEntity = createPayloadEntity(event, "resource");
     context.Payload.set(payloadEntity);
 
@@ -47,11 +41,6 @@ indexer.onEvent(
     }
   }
 );
-
-// ============================================
-// Payload Handlers (Discovery, External, Application)
-// ============================================
-// All payload types are unified into a single Payload entity with a category discriminator.
 
 /**
  * Creates a Payload entity with the specified category.
