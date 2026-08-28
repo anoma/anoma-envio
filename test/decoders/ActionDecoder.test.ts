@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   decodeExecuteCalldata,
   isExecuteCalldata,
-  getActionFromCalldata,
   EXECUTE_SELECTOR,
 } from "../../src/decoders/ActionDecoder.js";
 import { DeletionCriterion } from "../../src/types/index.js";
@@ -82,28 +81,12 @@ describe("ActionDecoder", () => {
     });
   });
 
-  describe("getActionFromCalldata", () => {
-    it("should return null for invalid calldata", () => {
-      expect(getActionFromCalldata("", 0)).toBeNull();
-      expect(getActionFromCalldata("0x12345678", 0)).toBeNull();
-    });
-
-    it("should return null for invalid action index", () => {
-      // Even with valid calldata, negative index should fail
-      expect(getActionFromCalldata(PA_V2_EXECUTE_SELECTOR, -1)).toBeNull();
-    });
-
-    it("should return null for a non-integer action index", () => {
-      // A fractional index passes a bare `< 0 || >= length` guard, and the
-      // subsequent array access yields undefined rather than null.
-      const calldata = encodeExecute([action([consumed(b32("n"))], [created(b32("c"))])]);
-      expect(getActionFromCalldata(calldata, 0.5)).toBeNull();
-      expect(getActionFromCalldata(calldata, NaN)).toBeNull();
-      expect(getActionFromCalldata(calldata, Infinity)).toBeNull();
-    });
-  });
-
   describe("round-trip over the v2 struct shape", () => {
+    const firstAction = (input: string) => {
+      const result = decodeExecuteCalldata(input);
+      return result.success ? result.transaction.actions[0] : null;
+    };
+
     const root = b32("root0");
     const calldata = encodeExecute([
       action(
@@ -133,7 +116,7 @@ describe("ActionDecoder", () => {
     });
 
     it("should carry the logic reference and commitment tree root of a consumed resource", () => {
-      const decoded = getActionFromCalldata(calldata, 0);
+      const decoded = firstAction(calldata);
       expect(decoded).not.toBeNull();
       if (!decoded) {
         return;
@@ -145,7 +128,7 @@ describe("ActionDecoder", () => {
     });
 
     it("should carry the app data payloads of each resource", () => {
-      const decoded = getActionFromCalldata(calldata, 0);
+      const decoded = firstAction(calldata);
       expect(decoded).not.toBeNull();
       if (!decoded) {
         return;
@@ -174,7 +157,7 @@ describe("ActionDecoder", () => {
         ),
       ]);
 
-      const decoded = getActionFromCalldata(persisted, 0);
+      const decoded = firstAction(persisted);
       expect(decoded).not.toBeNull();
       if (!decoded) {
         return;

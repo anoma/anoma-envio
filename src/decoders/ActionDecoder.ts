@@ -300,25 +300,3 @@ export function isExecuteCalldata(input: string): boolean {
   const hexInput = input.startsWith("0x") ? input : `0x${input}`;
   return hexInput.slice(0, 10).toLowerCase() === EXECUTE_SELECTOR;
 }
-
-/**
- * Get action at a specific index from decoded calldata.
- * Returns null if calldata cannot be decoded or index is out of bounds.
- */
-export function getActionFromCalldata(input: string, actionIndex: number): Action | null {
-  const result = decodeExecuteCalldata(input);
-  if (!result.success) {
-    return null;
-  }
-
-  const { transaction } = result;
-  if (
-    !Number.isInteger(actionIndex) ||
-    actionIndex < 0 ||
-    actionIndex >= transaction.actions.length
-  ) {
-    return null;
-  }
-
-  return transaction.actions[actionIndex];
-}
