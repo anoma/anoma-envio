@@ -14,6 +14,14 @@
 export const DECODED_CALLDATA_CACHE_MAX_SIZE = 1000;
 
 /**
+ * Stands in for the Transaction link of an Action or Tag written before its TransactionExecuted
+ * arrived. No Transaction ever carries this id, which is `{chainId}_{txHash}_{logIndex}`, so a
+ * row still holding it has not been relinked. Scope any such lookup by evmTxId: this value is
+ * shared by every pending row on every chain.
+ */
+export const PENDING_TRANSACTION_ID = "0";
+
+/**
  * Number of seconds in a UTC day.
  */
 export const SECONDS_PER_DAY = 86400;

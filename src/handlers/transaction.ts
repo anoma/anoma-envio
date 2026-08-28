@@ -31,7 +31,7 @@ import type {
   Transaction as DecodedTransaction,
 } from "../types/index.js";
 import { BoundedCache } from "../utils/BoundedCache.js";
-import { DECODED_CALLDATA_CACHE_MAX_SIZE } from "../constants.js";
+import { DECODED_CALLDATA_CACHE_MAX_SIZE, PENDING_TRANSACTION_ID } from "../constants.js";
 import {
   createActionId,
   createEvmTxId,
@@ -40,6 +40,14 @@ import {
   createTransactionId,
 } from "./ids.js";
 import { loadStats, writeStats } from "./stats.js";
+
+/**
+ * Keeps the rows of an EVM transaction that have not been relinked yet. getWhere scopes by
+ * evmTxId; the pending marker is not selective on its own, so it is checked here.
+ */
+function awaitingTransaction<T extends { transaction_id: string }>(rows: T[]): T[] {
+  return rows.filter((row) => row.transaction_id === PENDING_TRANSACTION_ID);
+}
 
 /**
  * One tag of an action, paired with what calldata decoding knows about its resource. Only a
@@ -123,7 +131,7 @@ indexer.onEvent(
     // between an action and its transaction cannot strand them.
     const [actions, tags, statsRows] = await Promise.all([
       context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
-      context.Tag.getWhere({ transaction_id: { _eq: evmTxId } }),
+      context.Tag.getWhere({ evmTxId: { _eq: evmTxId } }),
       loadStats(context, event.chainId, event.block.timestamp),
     ]);
 
@@ -162,12 +170,10 @@ indexer.onEvent(
 
     context.Transaction.set(txEntity);
 
-    for (const action of actions) {
-      if (action.transaction_id === evmTxId) {
-        context.Action.set({ ...action, transaction_id: txId });
-      }
+    for (const action of awaitingTransaction(actions)) {
+      context.Action.set({ ...action, transaction_id: txId });
     }
-    for (const tag of tags) {
+    for (const tag of awaitingTransaction(tags)) {
       context.Tag.set({ ...tag, transaction_id: txId });
     }
 
@@ -224,7 +230,7 @@ indexer.onEvent(
     // The contract emits ActionExecuted once per action in calldata order and events are
     // processed in that order, so this action's position is the number of actions of the same
     // transaction already written and not yet relinked.
-    const actionIndex = pendingActions.filter((a) => a.transaction_id === evmTxId).length;
+    const actionIndex = awaitingTransaction(pendingActions).length;
 
     // Position stays authoritative, since two actions of one transaction can share a tree root.
     // The root is the cross-check: on a drift the calldata details are dropped rather than taken
@@ -242,7 +248,6 @@ indexer.onEvent(
       );
     }
 
-    // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
     const actionEntity: Action = {
       // indexer metadata
       id: actionId,
@@ -252,7 +257,7 @@ indexer.onEvent(
       chainId: chainId,
       timestamp: timestamp,
       evmTxId: evmTxId,
-      transaction_id: evmTxId,
+      transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
       // pa-evm event params
       actionTreeRoot: actionTreeRoot,
       // counted from the event's nullifier and commitment arrays
@@ -289,7 +294,8 @@ indexer.onEvent(
           blockNumber: blockNumber,
           timestamp: timestamp,
           chainId: chainId,
-          transaction_id: evmTxId,
+          evmTxId: evmTxId,
+          transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
           // pa-evm event params
           tagHash: tagHash,
         }),

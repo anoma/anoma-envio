@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
 import { b32, consumed, created, action, encodeExecute } from "./fixtures/encode-tx.js";
+import { PENDING_TRANSACTION_ID } from "../src/constants.js";
 
 describe("Relink across batches", () => {
   const CHAIN = 84532;
@@ -49,8 +50,11 @@ describe("Relink across batches", () => {
       },
     });
 
+    // Written, but not linked to a Transaction until TransactionExecuted arrives next batch.
     const evmTxId = `${CHAIN}_${TX_HASH}`;
-    expect((await indexer.Action.getAll()).map((a) => a.transaction_id)).toEqual([evmTxId]);
+    const pending = await indexer.Action.getAll();
+    expect(pending.map((a) => a.transaction_id)).toEqual([PENDING_TRANSACTION_ID]);
+    expect(pending.map((a) => a.evmTxId)).toEqual([evmTxId]);
 
     await indexer.process({
       chains: {

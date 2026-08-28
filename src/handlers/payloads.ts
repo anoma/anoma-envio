@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import type { Payload, Tag } from "envio";
 
+import { PENDING_TRANSACTION_ID } from "../constants.js";
 import { createEventId, createEvmTxId, createTagId } from "./ids.js";
 import { incrementAllStats } from "./stats.js";
 
@@ -36,7 +37,8 @@ indexer.onEvent(
         blockNumber: BigInt(event.block.number),
         timestamp: BigInt(event.block.timestamp),
         chainId: BigInt(event.chainId),
-        transaction_id: evmTxId, // Temporary — TransactionExecuted will set the proper txId
+        evmTxId: evmTxId,
+        transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
         logicRef: undefined, // Will be set by ActionExecuted
         resource_id: undefined,
         // pa-evm event params
