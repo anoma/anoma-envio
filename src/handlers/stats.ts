@@ -1,6 +1,7 @@
 import type { ChainDailyStats, ChainStats, DailyStats, EvmOnEventContext, Stats } from "envio";
 
 import { getUTCDay } from "../constants.js";
+import { createChainDailyStatsId, createChainStatsId } from "./ids.js";
 
 const STATS_ID = "global";
 
@@ -82,8 +83,8 @@ export async function loadStats(
   const [stats, daily, chainStats, chainDaily] = await Promise.all([
     context.Stats.get(STATS_ID),
     context.DailyStats.get(dateKey),
-    context.ChainStats.get(String(chainId)),
-    context.ChainDailyStats.get(`${chainId}-${dateKey}`),
+    context.ChainStats.get(createChainStatsId(chainId)),
+    context.ChainDailyStats.get(createChainDailyStatsId(chainId, dateKey)),
   ]);
   return { dateKey, dayTimestamp, stats, daily, chainStats, chainDaily };
 }
@@ -105,8 +106,8 @@ export function writeStats(
   }
 
   const { dateKey, dayTimestamp, stats, daily, chainStats, chainDaily } = rows;
-  const chainKey = String(chainId);
-  const chainDateKey = `${chainId}-${dateKey}`;
+  const chainKey = createChainStatsId(chainId);
+  const chainDateKey = createChainDailyStatsId(chainId, dateKey);
   const block = BigInt(blockNumber);
   const time = BigInt(timestamp);
   const chain = BigInt(chainId);

@@ -9,16 +9,19 @@ import { incrementAllStats } from "./stats.js";
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ResourcePayload" },
   async ({ event, context }) => {
+    const { chainId } = event;
+    const { number: blockNumber, timestamp } = event.block;
+
     const tagHash = event.params.tag;
-    const tagId = createTagId(event.chainId, tagHash);
-    const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
+    const tagId = createTagId(chainId, tagHash);
+    const evmTxId = createEvmTxId(chainId, event.transaction.hash);
 
     const payloadEntity = createPayloadEntity(event, "resource");
     context.Payload.set(payloadEntity);
 
     // The stats reads and the tag lookup are independent, so they share one read round.
     const [, existingTag] = await Promise.all([
-      incrementAllStats(context, event.chainId, event.block.number, event.block.timestamp, {
+      incrementAllStats(context, chainId, blockNumber, timestamp, {
         resourcePayloads: 1,
       }),
       context.Tag.get(tagId),
@@ -34,9 +37,9 @@ indexer.onEvent(
         index: 0,
         actionLogIndex: undefined, // Set by ActionExecuted, which knows the action
         isConsumed: false, // Placeholder — ActionExecuted sets the side
-        blockNumber: BigInt(event.block.number),
-        timestamp: BigInt(event.block.timestamp),
-        chainId: BigInt(event.chainId),
+        blockNumber: BigInt(blockNumber),
+        timestamp: BigInt(timestamp),
+        chainId: BigInt(chainId),
         evmTxId: evmTxId,
         transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
         logicRef: undefined, // Will be set by ActionExecuted

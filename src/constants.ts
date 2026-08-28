@@ -9,7 +9,10 @@
 
 /**
  * Maximum number of decoded transaction calldata entries to cache.
- * Prevents unbounded memory growth when processing many transactions.
+ *
+ * A batch whose preload pass decodes more transactions than this evicts the oldest and re-decodes
+ * them in the sequential pass, so the value trades memory against decode work on large batches.
+ * It is not only a memory guard.
  */
 export const DECODED_CALLDATA_CACHE_MAX_SIZE = 1000;
 

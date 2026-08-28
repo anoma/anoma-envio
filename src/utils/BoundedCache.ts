@@ -33,10 +33,8 @@ export class BoundedCache<K, V> {
     }
 
     while (this.cache.size >= this.maxSize) {
-      for (const oldestKey of this.cache.keys()) {
-        this.cache.delete(oldestKey);
-        break;
-      }
+      const [oldestKey] = this.cache.keys();
+      this.cache.delete(oldestKey);
     }
 
     this.cache.set(key, value);

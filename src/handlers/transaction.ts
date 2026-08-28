@@ -34,7 +34,9 @@ import { BoundedCache } from "../utils/BoundedCache.js";
 import { DECODED_CALLDATA_CACHE_MAX_SIZE, PENDING_TRANSACTION_ID } from "../constants.js";
 import {
   createActionId,
+  createChainLogicRefId,
   createEvmTxId,
+  createExternalPayloadId,
   createResourceId,
   createTagId,
   createTransactionId,
@@ -69,8 +71,13 @@ function tagOf(
   };
 }
 
-// Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
-// within it. Uses BoundedCache to prevent unbounded memory growth.
+// Decoded calldata per EVM transaction, so a transaction with several actions decodes once
+// rather than once per ActionExecuted, and the sequential pass reuses what preload decoded.
+//
+// Only the sequential pass evicts, in clearDecodedCache below, so a preload pass holds an entry
+// for every decodable transaction in its batch. The ceiling is what stops that from growing
+// without limit, and it also covers the entry an ActionExecuted leaves behind when a reorg means
+// its TransactionExecuted never arrives.
 const decodedCalldataCache = new BoundedCache<string, DecodedTransaction>(
   DECODED_CALLDATA_CACHE_MAX_SIZE
 );
@@ -115,16 +122,19 @@ function clearDecodedCache(evmTxId: string): void {
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "TransactionExecuted" },
   async ({ event, context }) => {
-    const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
-    const txId = createTransactionId(event.chainId, event.transaction.hash, event.logIndex);
-    const txHash = event.transaction.hash;
+    const { chainId, logIndex } = event;
+    const { number: blockNumber, timestamp } = event.block;
+    // input is available because "input" is in field_selection.
+    const { hash: txHash, input } = event.transaction;
 
-    const blockNumber = BigInt(event.block.number);
-    const timestamp = BigInt(event.block.timestamp);
-    const chainId = BigInt(event.chainId);
+    const evmTxId = createEvmTxId(chainId, txHash);
+    const txId = createTransactionId(chainId, txHash, logIndex);
 
-    // Note: event.transaction.input is available because we added "input" to field_selection
-    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
+    const block = BigInt(blockNumber);
+    const time = BigInt(timestamp);
+    const chain = BigInt(chainId);
+
+    const decoded = getDecodedTransaction(context, evmTxId, input);
 
     // Relink the actions and tags earlier handlers wrote against the correlation key. Rows from
     // this batch come from the in-memory store and older ones from the database, so a restart
@@ -132,7 +142,7 @@ indexer.onEvent(
     const [actions, tags, statsRows] = await Promise.all([
       context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
       context.Tag.getWhere({ evmTxId: { _eq: evmTxId } }),
-      loadStats(context, event.chainId, event.block.timestamp),
+      loadStats(context, chainId, timestamp),
     ]);
 
     if (context.isPreload) {
@@ -143,9 +153,9 @@ indexer.onEvent(
     const evmTxEntity: EVMTransaction = {
       id: evmTxId,
       txHash: txHash,
-      blockNumber: blockNumber,
-      timestamp: timestamp,
-      chainId: chainId,
+      blockNumber: block,
+      timestamp: time,
+      chainId: chain,
       from: event.transaction.from,
       value: event.transaction.value,
     };
@@ -155,11 +165,11 @@ indexer.onEvent(
     const txEntity: Transaction = {
       // indexer metadata
       id: txId,
-      logIndex: event.logIndex,
+      logIndex: logIndex,
       contractAddress: event.srcAddress,
-      blockNumber: blockNumber,
-      timestamp: timestamp,
-      chainId: chainId,
+      blockNumber: block,
+      timestamp: time,
+      chainId: chain,
       evmTransaction_id: evmTxId,
       // pa-evm event params
       transactionId: event.params.transactionId,
@@ -177,7 +187,7 @@ indexer.onEvent(
       context.Tag.set({ ...tag, transaction_id: txId });
     }
 
-    writeStats(context, statsRows, event.chainId, event.block.number, event.block.timestamp, {
+    writeStats(context, statsRows, chainId, blockNumber, timestamp, {
       transactions: 1,
     });
 
@@ -196,30 +206,31 @@ indexer.onEvent(
     const { actionTreeRoot, nullifiers, consumedLogicRefs, commitments, createdLogicRefs } =
       event.params;
 
-    const txHash = event.transaction.hash;
-    const evmTxId = createEvmTxId(event.chainId, txHash);
+    const { chainId, logIndex } = event;
+    const { number: blockNumber, timestamp } = event.block;
+    const { hash: txHash, input } = event.transaction;
+
+    const evmTxId = createEvmTxId(chainId, txHash);
     const actionId = createActionId(evmTxId, actionTreeRoot);
 
-    const blockNumber = BigInt(event.block.number);
-    const timestamp = BigInt(event.block.timestamp);
-    const chainId = BigInt(event.chainId);
+    const block = BigInt(blockNumber);
+    const time = BigInt(timestamp);
+    const chain = BigInt(chainId);
 
-    const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
+    const decoded = getDecodedTransaction(context, evmTxId, input);
 
     // Tag ids and logic refs come from the event alone, so they load in one round together with
     // the actions of this transaction still waiting for their TransactionExecuted.
-    const tagIds = [...nullifiers, ...commitments].map((tagHash) =>
-      createTagId(event.chainId, tagHash)
-    );
+    const tagIds = [...nullifiers, ...commitments].map((tagHash) => createTagId(chainId, tagHash));
     const uniqueLogicRefs = [...new Set([...consumedLogicRefs, ...createdLogicRefs])];
-    const chainLogicRefIds = uniqueLogicRefs.map((ref) => `${event.chainId}-${ref}`);
+    const chainLogicRefIds = uniqueLogicRefs.map((ref) => createChainLogicRefId(chainId, ref));
     const [pendingActions, existingTags, existingLogicRefs, existingChainLogicRefs, statsRows] =
       await Promise.all([
         context.Action.getWhere({ evmTxId: { _eq: evmTxId } }),
         Promise.all(tagIds.map((id) => context.Tag.get(id))),
         Promise.all(uniqueLogicRefs.map((ref) => context.LogicRef.get(ref))),
         Promise.all(chainLogicRefIds.map((id) => context.ChainLogicRef.get(id))),
-        loadStats(context, event.chainId, event.block.timestamp),
+        loadStats(context, chainId, timestamp),
       ]);
 
     // Everything below writes; the preload pass only needed the reads above.
@@ -252,10 +263,10 @@ indexer.onEvent(
       // indexer metadata
       id: actionId,
       index: actionIndex,
-      logIndex: event.logIndex,
-      blockNumber: blockNumber,
-      chainId: chainId,
-      timestamp: timestamp,
+      logIndex: logIndex,
+      blockNumber: block,
+      chainId: chain,
+      timestamp: time,
       evmTxId: evmTxId,
       transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
       // pa-evm event params
@@ -291,9 +302,9 @@ indexer.onEvent(
         ...(existingTag ?? {
           // indexer metadata
           id: tagId,
-          blockNumber: blockNumber,
-          timestamp: timestamp,
-          chainId: chainId,
+          blockNumber: block,
+          timestamp: time,
+          chainId: chain,
           evmTxId: evmTxId,
           transaction_id: PENDING_TRANSACTION_ID, // Replaced by TransactionExecuted
           // pa-evm event params
@@ -301,7 +312,7 @@ indexer.onEvent(
         }),
         // indexer metadata
         index: index,
-        actionLogIndex: event.logIndex,
+        actionLogIndex: logIndex,
         resource_id: resourceId,
         // pa-evm event params; isConsumed is the array the tag came from
         isConsumed: isConsumed,
@@ -311,8 +322,8 @@ indexer.onEvent(
         // indexer metadata
         id: resourceId,
         index: index,
-        timestamp: timestamp,
-        chainId: chainId,
+        timestamp: time,
+        chainId: chain,
         action_id: actionId,
         tag_id: tagId,
         // pa-evm event params; isConsumed is the array the tag came from
@@ -348,9 +359,9 @@ indexer.onEvent(
           // pa-evm event params
           id: uniqueLogicRefs[i],
           // indexer metadata
-          firstSeenBlock: blockNumber,
-          firstSeenTimestamp: timestamp,
-          firstSeenChainId: chainId,
+          firstSeenBlock: block,
+          firstSeenTimestamp: time,
+          firstSeenChainId: chain,
           firstSeenTxHash: txHash,
         });
         newLogicCount++;
@@ -359,9 +370,9 @@ indexer.onEvent(
         context.ChainLogicRef.set({
           // indexer metadata
           id: chainLogicRefIds[i],
-          chainId: chainId,
-          firstSeenBlock: blockNumber,
-          firstSeenTimestamp: timestamp,
+          chainId: chain,
+          firstSeenBlock: block,
+          firstSeenTimestamp: time,
           firstSeenTxHash: txHash,
           // pa-evm event params
           logicRef: uniqueLogicRefs[i],
@@ -370,7 +381,7 @@ indexer.onEvent(
       }
     }
 
-    writeStats(context, statsRows, event.chainId, event.block.number, event.block.timestamp, {
+    writeStats(context, statsRows, chainId, blockNumber, timestamp, {
       actions: 1,
       resources: orderedTags.length,
       tags: orderedTags.length,
@@ -409,7 +420,7 @@ function writeImmediateExternalPayloads(
 
     context.Payload.set({
       // indexer metadata
-      id: `${resourceId}_externalCall_${index}`,
+      id: createExternalPayloadId(resourceId, index),
       category: "externalCall",
       tag_id: tagId,
       // pa-evm execute() calldata (these blobs never get their own event)
