@@ -71,8 +71,13 @@ function tagOf(
   };
 }
 
-// Cache decoded calldata per EVM transaction to avoid re-decoding for each ActionExecuted event
-// within it. Uses BoundedCache to prevent unbounded memory growth.
+// Decoded calldata per EVM transaction, so a transaction with several actions decodes once
+// rather than once per ActionExecuted, and the sequential pass reuses what preload decoded.
+//
+// Only the sequential pass evicts, in clearDecodedCache below, so a preload pass holds an entry
+// for every decodable transaction in its batch. The ceiling is what stops that from growing
+// without limit, and it also covers the entry an ActionExecuted leaves behind when a reorg means
+// its TransactionExecuted never arrives.
 const decodedCalldataCache = new BoundedCache<string, DecodedTransaction>(
   DECODED_CALLDATA_CACHE_MAX_SIZE
 );
