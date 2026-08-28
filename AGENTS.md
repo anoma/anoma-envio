@@ -58,7 +58,7 @@ indexer bugs.
 | ---------------------- | ----------------------------------------------------- |
 | `config.yaml`          | chains, contract addresses, `start_block`, event ABIs |
 | `schema.graphql`       | entities and relationships                            |
-| `src/EventHandlers.ts` | per-event logic                                       |
+| `src/handlers/`        | per-event logic, auto-loaded by Envio                 |
 
 Work test-first: add a failing test under `test/`, implement the handler, `pnpm test`,
 iterate. `test/fixtures/encode-tx.ts` builds synthetic `execute()` calldata so handler
@@ -87,8 +87,8 @@ tests need no live chain.
 
 ## Handler invariants
 
-`src/EventHandlers.ts` documents pa-evm's intra-transaction event order and the tag-index
-convention (even indices = consumed/nullifiers, odd = created/commitments). Both come from
+`src/handlers/transaction.ts` documents pa-evm's intra-transaction event order and the
+canonical tag order (consumed nullifiers first, then created commitments). Both come from
 `ProtocolAdapter._execute` on the contract side. Read that header comment before touching
 ordering or tag logic. Reordering the handlers silently corrupts entity linkage rather
 than throwing.
