@@ -161,13 +161,13 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "ProtocolAdapter", event: "ActionExecuted" },
   async ({ event, context }) => {
-    const evmTxId = createEvmTxId(event.chainId, event.transaction.hash);
     const txHash = event.transaction.hash;
+    const evmTxId = createEvmTxId(event.chainId, txHash);
     const actionId = createActionId(evmTxId, event.params.actionTreeRoot);
 
     const nullifiers = event.params.nullifiers;
-    const commitments = event.params.commitments;
     const consumedLogicRefs = event.params.consumedLogicRefs;
+    const commitments = event.params.commitments;
     const createdLogicRefs = event.params.createdLogicRefs;
 
     const decoded = getDecodedTransaction(context, evmTxId, event.transaction.input);
@@ -198,14 +198,21 @@ indexer.onEvent(
     // transaction already written and not yet relinked.
     const actionIndex = pendingActions.filter((a) => a.transaction_id === evmTxId).length;
 
-    if (decoded && actionIndex >= decoded.actions.length) {
+    // Position stays authoritative, since two actions of one transaction can share a tree root.
+    // The root is the cross-check: on a drift the calldata details are dropped rather than taken
+    // from another action, which would silently attach the wrong delta and payload counts.
+    const positional =
+      decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
+    const decodedAction: DecodedAction | null =
+      positional?.actionTreeRoot === event.params.actionTreeRoot ? positional : null;
+
+    if (decoded && !decodedAction) {
       context.log.warn(
-        `ActionExecuted #${actionIndex} for tx ${txHash} has no matching decoded action ` +
-          `(calldata decoded ${decoded.actions.length} action(s)); resource details omitted.`
+        `ActionExecuted #${actionIndex} for tx ${txHash} has no decoded action with root ` +
+          `${event.params.actionTreeRoot} at that position (calldata decoded ` +
+          `${decoded.actions.length} action(s)); resource details omitted.`
       );
     }
-    const decodedAction: DecodedAction | null =
-      decoded && actionIndex < decoded.actions.length ? decoded.actions[actionIndex] : null;
 
     // Create Action entity (transaction_id is temporary — TransactionExecuted will fix it)
     const actionEntity: Action = {
