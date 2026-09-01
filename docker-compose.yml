@@ -40,7 +40,7 @@ services:
   hasura:
     user: 1001:1001
     restart: unless-stopped
-    image: hasura/graphql-engine:v2.50.0
+    image: hasura/graphql-engine:v2.50.1
     ports:
       - 8080:8080
     depends_on:
